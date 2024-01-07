@@ -18,9 +18,12 @@ px_scale = 7
 plan_edge_length = 60
 hist_edge_length = 20
 
-last_mouse_coord = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+# plan view x, y; lonalt x, y; latalt x, y; time x, y; position; counter
+last_mouse_coord = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-alt_limit = Range1d(0, 20000, bounds=(0, 100000))
+alt_min = 0
+alt_max = 100000
+alt_limit = Range1d(0, 20000, bounds=(alt_min, alt_max))
 
 
 filename = 'LYLOUT_230615_200000_0600.dat.gz'
@@ -56,6 +59,78 @@ def hook_time_limiter(plot, element):
 def hook_xlabel_rotate(plot, element):
     plot.state.xaxis.major_label_orientation = -np.pi/2
 
+def highlight_plotter(plan_vertices, lat_vertices, lon_vertices, time_vertices, target):
+    # Determine which axis the mouse is in:
+    if last_mouse_coord[-2] == 1:
+        # mouse is in planview axis
+        if len(plan_vertices['xs']) == 0:
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+        x1 = np.min(plan_vertices['xs'])
+        x2 = np.max(plan_vertices['xs'])
+        y1 = np.min(plan_vertices['ys'])
+        y2 = np.max(plan_vertices['ys'])
+        if target == 'plan':
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+        elif target == 'lon':
+            return hv.VLine(x1).opts(color='black', line_dash='dashed') * hv.Area(([x1, x2], [alt_max, alt_max])).opts(color='black', alpha=0.3) * hv.VLine(np.max(plan_vertices['xs'])).opts(color='black', line_dash='dashed')
+        elif target == 'lat':
+            return hv.HLine(y1).opts(color='black', line_dash='dashed') * hv.Area(([alt_min, alt_max], [y1, y1], [y2, y2]), vdims=['latmin', 'latmax']).opts(color='black', alpha=0.3) * hv.HLine(y2).opts(color='black', line_dash='dashed')
+        elif target == 'time':
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+    elif last_mouse_coord[-2] == 2:
+        # mouse is in lonalt axis
+        if len(lon_vertices['xs']) == 0:
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+        x1 = np.min(lon_vertices['xs'])
+        x2 = np.max(lon_vertices['xs'])
+        y1 = np.min(lon_vertices['ys'])
+        y2 = np.max(lon_vertices['ys'])
+        if target == 'plan':
+            return hv.VLine(x1).opts(color='black', line_dash='dashed') * hv.Area(([x1, x2], [-90, -90], [90, 90]), vdims=['latmin', 'latmax']).opts(color='black', alpha=0.3) * hv.VLine(np.max(plan_vertices['xs'])).opts(color='black', line_dash='dashed')
+        elif target == 'lon':
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+        elif target == 'lat':
+            return hv.VLine(y1).opts(color='black', line_dash='dashed') * hv.Area(([y1, y2], [-90, -90], [90, 90]), vdims=['latmin', 'latmax']).opts(color='black', alpha=0.3) * hv.VLine(y2).opts(color='black', line_dash='dashed')
+        elif target == 'time':
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+            return hv.HLine(y1).opts(color='black', line_dash='dashed') * hv.Area(([time_range.astype(np.datetime64)[0], time_range.astype(np.datetime64)[1]], [y1, y1], [y2, y2]), vdims=['altmin', 'altmax']).opts(color='black', alpha=0.3) * hv.HLine(y2).opts(color='black', line_dash='dashed')
+    elif last_mouse_coord[-2] == 3:
+        # mouse is in latalt axis
+        if len(lat_vertices['xs']) == 0:
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+        x1 = np.min(lat_vertices['xs'])
+        x2 = np.max(lat_vertices['xs'])
+        y1 = np.min(lat_vertices['ys'])
+        y2 = np.max(lat_vertices['ys'])
+        if target == 'plan':
+            return hv.HLine(y1).opts(color='black', line_dash='dashed') * hv.Area(([-180, 180], [y1, y1], [y2, y2]), vdims=['latmin', 'latmax']) * hv.HLine(y2).opts(color='black', line_dash='dashed')
+        elif target == 'lon':
+            return hv.HLine(x1).opts(color='black', line_dash='dashed') * hv.Area(([-180, 180], [x1, x1], [x2, x2]), vdims=['altmin', 'altmax']) * hv.HLine(x2).opts(color='black', line_dash='dashed')
+        elif target == 'lat':
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+        elif target == 'time':
+            return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+            return hv.HLine(x1).opts(color='black', line_dash='dashed') * hv.Area(([time_range[0], time_range[1]], [x1, x1], [x2, x2]), vdims=['altmin', 'altmax']) * hv.HLine(x2).opts(color='black', line_dash='dashed')
+    # elif last_mouse_coord[-2] == 4:
+    #     # mouse is in timeseries axis
+    #     if len(time_vertices['xs']) == 0:
+    #         return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+    #     last_mouse_coord[-2] = 4
+    #     x1 = np.min(time_vertices['xs'])
+    #     x2 = np.max(time_vertices['xs'])
+    #     y1 = np.min(time_vertices['ys'])
+    #     y2 = np.max(time_vertices['ys'])
+    #     if target == 'plan':
+    #         return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+    #     elif target == 'lon':
+    #         return hv.HLine(y1).opts(color='black', line_dash='dashed') * hv.Area(([-180, 180], [y1, y2])) * hv.HLine(y2).opts(color='black', line_dash='dashed')
+    #     elif target == 'lat':
+    #         return hv.VLine(y1).opts(color='black', line_dash='dashed') * hv.Area(([-180, 180], [y1, y2])) * hv.VLine(y2).opts(color='black', line_dash='dashed')
+    #     elif target == 'time':
+    #         return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+    else:
+        return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+
 def pointer_plotter(plan_x=None, plan_y=None, lat_x=None, lat_y=None,
                     lon_x=None, lon_y=None, time_x=None, time_y=None, target=None):
     global last_mouse_coord
@@ -63,6 +138,7 @@ def pointer_plotter(plan_x=None, plan_y=None, lat_x=None, lat_y=None,
     # Determine which axis the mouse is in:
     if plan_x != last_mouse_coord[0] or plan_y != last_mouse_coord[1]:
         # mouse is in planview axis
+        last_mouse_coord[-2] = 1
         if target == 'plan':
             crosshair =  hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
         elif target == 'lon':
@@ -73,6 +149,7 @@ def pointer_plotter(plan_x=None, plan_y=None, lat_x=None, lat_y=None,
             crosshair =  hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
     elif lon_x != last_mouse_coord[2] or lon_y != last_mouse_coord[3]:
         # mouse is in lonalt axis
+        last_mouse_coord[-2] = 2
         if target == 'plan':
             crosshair = hv.VLine(lon_x).opts(color='black') * hv.HLine(0).opts(alpha=0)
         elif target == 'lon':
@@ -83,6 +160,7 @@ def pointer_plotter(plan_x=None, plan_y=None, lat_x=None, lat_y=None,
             crosshair =  hv.VLine(0).opts(alpha=0) * hv.HLine(lon_y).opts(color='black')
     elif lat_x != last_mouse_coord[4] or lat_y != last_mouse_coord[5]:
         # mouse is in latalt axis
+        last_mouse_coord[-2] = 3
         if target == 'plan':
             crosshair = hv.VLine(0).opts(alpha=0) * hv.HLine(lat_y).opts(color='black')
         elif target == 'lon':
@@ -93,6 +171,7 @@ def pointer_plotter(plan_x=None, plan_y=None, lat_x=None, lat_y=None,
             crosshair = hv.VLine(0).opts(alpha=0) * hv.HLine(lat_x).opts(color='black')
     elif time_x != last_mouse_coord[6] or time_y != last_mouse_coord[7]:
         # mouse is in timeseries axis
+        last_mouse_coord[-2] = 4
         if target == 'plan':
             crosshair = hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
         elif target == 'lon':
@@ -103,9 +182,9 @@ def pointer_plotter(plan_x=None, plan_y=None, lat_x=None, lat_y=None,
             crosshair = hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
     else:
         crosshair =  hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
-    
-    if last_mouse_coord[-1] == ((len(last_mouse_coord)-1)/2):
-        last_mouse_coord = [plan_x, plan_y, lon_x, lon_y, lat_x, lat_y, time_x, time_y, 0]
+        last_mouse_coord = [plan_x, plan_y, lon_x, lon_y, lat_x, lat_y, time_x, time_y, 0, 0]
+    if last_mouse_coord[-1] == ((len(last_mouse_coord))/2)-1:
+        last_mouse_coord = [plan_x, plan_y, lon_x, lon_y, lat_x, lat_y, time_x, time_y, last_mouse_coord[-2], 0]
     return crosshair
 
 
@@ -115,26 +194,36 @@ zlim = (0, 20000)
 
 timefloats = color_by_time(ds.event_time.values)[-1]
 
-plan_ax = hv.Points((ds.event_longitude.data, ds.event_latitude.data, timefloats), kdims=['lon', 'lat'], vdims=['time'])
-plan_ax = hv.operation.datashader.datashade(plan_ax, aggregator=datashader.mean('time'), cmap='rainbow').opts(xlim=xlim, ylim=ylim, width=px_scale*plan_edge_length, height=px_scale*plan_edge_length, tools=['hover', 'lasso_select'])
+plan_points = hv.Points((ds.event_longitude.data, ds.event_latitude.data, timefloats), kdims=['lon', 'lat'], vdims=['time'])
+plan_ax = hv.operation.datashader.datashade(plan_points, aggregator=datashader.mean('time'), cmap='rainbow').opts(xlim=xlim, ylim=ylim, width=px_scale*plan_edge_length, height=px_scale*plan_edge_length, tools=['hover'])
+plan_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+plan_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'}).rename(data='plan_vertices')
 # counties_shp = shapefile.Reader('ne_10m_admin_2_counties.shp').shapes()
 # counties_shp = [shape(counties_shp[i]) for i in range(len(counties_shp))]
-# plan_ax = gv.Path(counties_shp).opts(color='gray') * gf.borders().opts(color='black') * gf.states().opts(color='black', line_width=2) * plan_ax
-plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_ax, transient=True).rename(x='plan_x', y='plan_y')
+# plan_ax = gv.Path(counties_shp).opts(color='gray') * gf.borders().opts(color='black') * gf.states().opts(color='black', line_width=2) * plan_points
+plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_points).rename(x='plan_x', y='plan_y')
 
 lon_alt_ax = hv.Points((ds.event_longitude.data, ds.event_altitude.data, timefloats), kdims=['lon', 'alt'], vdims=['time'])
-lon_alt_ax = hv.operation.datashader.datashade(lon_alt_ax, aggregator=datashader.mean('time'), cmap='rainbow').opts(xlim=xlim, ylim=zlim, width=px_scale*plan_edge_length, height=px_scale*hist_edge_length, hooks=[hook_yalt_limiter])
-lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_alt_ax, transient=True).rename(x='lon_x', y='lon_y')
+lon_alt_ax = hv.operation.datashader.datashade(lon_alt_ax, aggregator=datashader.mean('time'), cmap='rainbow').opts(xlim=xlim, ylim=zlim, width=px_scale*plan_edge_length, height=px_scale*hist_edge_length, hooks=[hook_yalt_limiter], tools=['hover'])
+lon_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black')).opts(tools=['poly_draw'])
+lon_alt_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'}).rename(data='lon_vertices')
+lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_alt_ax).rename(x='lon_x', y='lon_y')
 
-hist_ax = hv.Histogram(np.histogram(ds.event_altitude.data, bins=np.arange(0, 20001, 1000)), kdims=['alt'], vdims=['src']).opts(width=px_scale*hist_edge_length, height=px_scale*hist_edge_length, invert_axes=True).opts(hooks=[hook_xlabel_rotate, hook_hist_src_limiter, hook_yalt_limiter])
+
+hist_ax = hv.Histogram(np.histogram(ds.event_altitude.data, bins=np.arange(0, 20001, 1000)), kdims=['alt'], vdims=['src']).opts(width=px_scale*hist_edge_length, height=px_scale*hist_edge_length, invert_axes=True).opts(hooks=[hook_xlabel_rotate, hook_hist_src_limiter, hook_yalt_limiter], tools=['hover'])
 
 lat_alt_ax = hv.Points((ds.event_altitude.data, ds.event_latitude.data, timefloats), kdims=['alt', 'lat'], vdims=['time'])
-lat_alt_ax = hv.operation.datashader.datashade(lat_alt_ax, aggregator=datashader.mean('time'), cmap='rainbow').opts(xlim=zlim, ylim=ylim, width=px_scale*hist_edge_length, height=px_scale*plan_edge_length, hooks=[hook_xlabel_rotate, hook_xalt_limiter])
-lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_alt_ax, transient=True).rename(x='lat_x', y='lat_y')
+lat_alt_ax = hv.operation.datashader.datashade(lat_alt_ax, aggregator=datashader.mean('time'), cmap='rainbow').opts(xlim=zlim, ylim=ylim, width=px_scale*hist_edge_length, height=px_scale*plan_edge_length, hooks=[hook_xlabel_rotate, hook_xalt_limiter], tools=['hover'])
+lat_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+lat_alt_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'}).rename(data='lat_vertices')
+lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_alt_ax).rename(x='lat_x', y='lat_y')
 
-alt_time = hv.Points((ds.event_time.data, ds.event_altitude.data, timefloats), kdims=['time', 'alt'], vdims=['time'])
-alt_time = hv.operation.datashader.datashade(alt_time, aggregator=datashader.mean('time'), cmap='rainbow').opts(xlim=(ds.event_time.data[0], ds.event_time.data[-1]), ylim=zlim, width=px_scale*(plan_edge_length+hist_edge_length), height=px_scale*hist_edge_length, hooks=[hook_yalt_limiter, hook_time_limiter], toolbar=None)
-alt_time_pointer = hv.streams.PointerXY(x=0, y=0, source=alt_time, transient=True).rename(x='time_x', y='time_y')
+
+alt_time_ax = hv.Points((ds.event_time.data, ds.event_altitude.data, timefloats), kdims=['time', 'alt'], vdims=['time'])
+alt_time_ax = hv.operation.datashader.datashade(alt_time_ax, aggregator=datashader.mean('time'), cmap='rainbow').opts(xlim=(ds.event_time.data[0], ds.event_time.data[-1]), ylim=zlim, width=px_scale*(plan_edge_length+hist_edge_length), height=px_scale*hist_edge_length, hooks=[hook_yalt_limiter, hook_time_limiter], toolbar=None, tools=['hover'])
+alt_time_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+alt_time_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'}).rename(data='time_vertices')
+alt_time_pointer = hv.streams.PointerXY(x=0, y=0, source=alt_time_ax).rename(x='time_x', y='time_y')
 
 
 plan_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
@@ -158,15 +247,30 @@ time_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
                             pointer_plotter(plan_x, plan_y, lat_x, lat_y,
                             lon_x, lon_y, time_x, time_y, 'time'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
 
-lon_alt_ax = lon_alt_ax * lon_ax_crosshair
-plan_ax = plan_ax * plan_ax_crosshair
-lat_alt_ax = lat_alt_ax * lat_ax_crosshair
-alt_time = alt_time * time_ax_crosshair
+plan_ax_highlight = hv.DynamicMap(lambda plan_vertices, lat_vertices, lon_vertices, time_vertices: 
+                                 highlight_plotter(plan_vertices, lat_vertices, lon_vertices, time_vertices, 'plan'),
+                                 streams=[plan_ax_selector, lat_alt_ax_selector, lon_alt_ax_selector, alt_time_ax_selector])
+
+lon_ax_highlight = hv.DynamicMap(lambda plan_vertices, lat_vertices, lon_vertices, time_vertices: 
+                                 highlight_plotter(plan_vertices, lat_vertices, lon_vertices, time_vertices, 'lon'),
+                                 streams=[plan_ax_selector, lat_alt_ax_selector, lon_alt_ax_selector, alt_time_ax_selector])
+
+lat_ax_highlight = hv.DynamicMap(lambda plan_vertices, lat_vertices, lon_vertices, time_vertices: 
+                                 highlight_plotter(plan_vertices, lat_vertices, lon_vertices, time_vertices, 'lat'),
+                                 streams=[plan_ax_selector, lat_alt_ax_selector, lon_alt_ax_selector, alt_time_ax_selector])
+
+time_ax_highlight = hv.DynamicMap(lambda plan_vertices, lat_vertices, lon_vertices, time_vertices: 
+                                 highlight_plotter(plan_vertices, lat_vertices, lon_vertices, time_vertices, 'time'),
+                                 streams=[plan_ax_selector, lat_alt_ax_selector, lon_alt_ax_selector, alt_time_ax_selector])
+
+
+lon_alt_ax = lon_alt_ax * lon_ax_crosshair * lon_alt_ax_polys * lon_ax_highlight
+plan_ax = plan_ax * plan_ax_crosshair * plan_ax_polys * plan_ax_highlight
+lat_alt_ax = lat_alt_ax * lat_ax_crosshair * lat_alt_ax_polys * lat_ax_highlight
+alt_time_ax = alt_time_ax * time_ax_crosshair * alt_time_ax_polys * time_ax_highlight
 
 the_lower_part = (lon_alt_ax + hist_ax + plan_ax + lat_alt_ax).cols(2)
 
-# the_lower_part = hv.selection.link_selections(the_lower_part)
-
 title = pn.pane.Markdown('## LMA Data Explorer')
 
-pn.Column(title, alt_time, the_lower_part).servable()
+pn.Column(title, alt_time_ax, the_lower_part).servable()
