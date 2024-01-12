@@ -89,12 +89,11 @@ class LMADataExplorer:
 
     def pointer_plotter(self, plan_x=None, plan_y=None, lat_x=None, lat_y=None,
                     lon_x=None, lon_y=None, time_x=None, time_y=None, target=None):
-        last_mouse_coord = self.last_mouse_coord
-        last_mouse_coord[-1] += 1
+        self.last_mouse_coord[-1] += 1
         # Determine which axis the mouse is in:
-        if plan_x != last_mouse_coord[0] or plan_y != last_mouse_coord[1]:
+        if plan_x != self.last_mouse_coord[0] or plan_y != self.last_mouse_coord[1]:
             # mouse is in planview axis
-            last_mouse_coord[-2] = 1
+            self.last_mouse_coord[-2] = 1
             if target == 'plan':
                 crosshair =  hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
             elif target == 'lon':
@@ -103,9 +102,9 @@ class LMADataExplorer:
                 crosshair =  hv.HLine(plan_y).opts(color='black') * hv.VLine(0).opts(alpha=0)
             elif target == 'time':
                 crosshair =  hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
-        elif lon_x != last_mouse_coord[2] or lon_y != last_mouse_coord[3]:
+        elif lon_x != self.last_mouse_coord[2] or lon_y != self.last_mouse_coord[3]:
             # mouse is in lonalt axis
-            last_mouse_coord[-2] = 2
+            self.last_mouse_coord[-2] = 2
             if target == 'plan':
                 crosshair = hv.VLine(lon_x).opts(color='black') * hv.HLine(0).opts(alpha=0)
             elif target == 'lon':
@@ -114,9 +113,9 @@ class LMADataExplorer:
                 crosshair = hv.HLine(0).opts(alpha=0) * hv.VLine(lon_y).opts(color='black')
             elif target == 'time':
                 crosshair =  hv.VLine(0).opts(alpha=0) * hv.HLine(lon_y).opts(color='black')
-        elif lat_x != last_mouse_coord[4] or lat_y != last_mouse_coord[5]:
+        elif lat_x != self.last_mouse_coord[4] or lat_y != self.last_mouse_coord[5]:
             # mouse is in latalt axis
-            last_mouse_coord[-2] = 3
+            self.last_mouse_coord[-2] = 3
             if target == 'plan':
                 crosshair = hv.VLine(0).opts(alpha=0) * hv.HLine(lat_y).opts(color='black')
             elif target == 'lon':
@@ -125,9 +124,9 @@ class LMADataExplorer:
                 crosshair = hv.HLine(0).opts(alpha=0) * hv.VLine(0).opts(alpha=0)
             elif target == 'time':
                 crosshair = hv.VLine(0).opts(alpha=0) * hv.HLine(lat_x).opts(color='black')
-        elif time_x != last_mouse_coord[6] or time_y != last_mouse_coord[7]:
+        elif time_x != self.last_mouse_coord[6] or time_y != self.last_mouse_coord[7]:
             # mouse is in timeseries axis
-            last_mouse_coord[-2] = 4
+            self.last_mouse_coord[-2] = 4
             if target == 'plan':
                 crosshair = hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
             elif target == 'lon':
@@ -138,15 +137,112 @@ class LMADataExplorer:
                 crosshair = hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
         else:
             crosshair =  hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
-            last_mouse_coord = [plan_x, plan_y, lon_x, lon_y, lat_x, lat_y, time_x, time_y, 0, 0]
-        if last_mouse_coord[-1] == ((len(last_mouse_coord))/2)-1:
-            last_mouse_coord = [plan_x, plan_y, lon_x, lon_y, lat_x, lat_y, time_x, time_y, last_mouse_coord[-2], 0]
+            self.last_mouse_coord = [plan_x, plan_y, lon_x, lon_y, lat_x, lat_y, time_x, time_y, 0, 0]
+        if self.last_mouse_coord[-1] == ((len(self.last_mouse_coord))/2)-1:
+            self.last_mouse_coord = [plan_x, plan_y, lon_x, lon_y, lat_x, lat_y, time_x, time_y, self.last_mouse_coord[-2], 0]
         return crosshair
     
+    def handle_selection(self, data):
+        this_selection_geom = np.array([data['xs'], data['ys']]).T[:, 0, :]
+        self.selection_geom = [this_selection_geom, self.last_mouse_coord[-2]]
 
-    def highlight_plotter(self, data, source=):
-    
+    def plan_ax_highlighter(self):
+        match self.selection_geom[-1]:
+            case 0 | 1 | 4:
+                # selection is in an unknown position, the planview axis or the time height axis
+                # in these cases, we don't want to highlight any selection made
+                return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+            case 2:
+                # selection is in the lonalt axis
+                # highlight longitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 0])
+                x2 = np.max(self.selection_geom[0][:, 0])
+                return (hv.Area(([x1, x2], [-90, -90], [90, 90]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.VLines([x1, x2]).opts(color='black', line_dash='dashed'))
+            case 3:
+                # selection is in the latalt axis
+                # highlight latitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 1])
+                x2 = np.max(self.selection_geom[0][:, 1])
+                return (hv.Area(([-180, 180], [x1, x1], [x2, x2]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.HLines([x1, x2]).opts(color='black', line_dash='dashed'))
+        
+    def lon_ax_highlighter(self):
+        match self.selection_geom[-1]:
+            case 0 | 2:
+                # selection is in an unknown position, or the lonalt axis
+                # in these cases, we don't want to highlight any selection made
+                return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+            case 1:
+                # selection is in the planview axis
+                # highlight longitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 0])
+                x2 = np.max(self.selection_geom[0][:, 0])
+                return (hv.Area(([x1, x2], [self.alt_min, self.alt_min], [self.alt_max, self.alt_max]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.VLines([x1, x2]).opts(color='black', line_dash='dashed'))
+            case 3:
+                # selection is in the latalt axis
+                # highlight altitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 0])
+                x2 = np.max(self.selection_geom[0][:, 0])
+                return (hv.Area(([-180, 180], [x1, x1], [x2, x2]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.HLines([x1, x2]).opts(color='black', line_dash='dashed'))
+            case 4:
+                # selection is in the time axis
+                # highlight altitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 1])
+                x2 = np.max(self.selection_geom[0][:, 1])
+                return (hv.Area(([-180, 180], [x1, x1], [x2, x2]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.HLines([x1, x2]).opts(color='black', line_dash='dashed'))
 
+    def lat_ax_highlighter(self):
+        match self.selection_geom[-1]:
+            case 0 | 3:
+                # selection is in an unknown position, or the latalt axis
+                # in these cases, we don't want to highlight any selection made
+                return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+            case 1:
+                # selection is in the planview axis
+                # highlight latitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 1])
+                x2 = np.max(self.selection_geom[0][:, 1])
+                return (hv.Area(([self.alt_min, self.alt_max], [x1, x1], [x2, x2]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.HLines([x1, x2]).opts(color='black', line_dash='dashed'))
+            case 2:
+                # selection is in the lonalt axis
+                # highlight altitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 1])
+                x2 = np.max(self.selection_geom[0][:, 1])
+                return (hv.Area(([x1, x2], [-90, -90], [90, 90]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.VLines([x1, x2]).opts(color='black', line_dash='dashed'))
+            case 4:
+                # selection is in the time axis
+                # highlight altitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 1])
+                x2 = np.max(self.selection_geom[0][:, 1])
+                return (hv.Area(([x1, x2], [-90, -90], [90, 90]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.VLines([x1, x2]).opts(color='black', line_dash='dashed'))
+
+    def time_ax_highlighter(self):
+        match self.selection_geom[-1]:
+            case 0 | 1 | 4:
+                # selection is in an unknown position, the planview axis or the time height axis
+                # in these cases, we don't want to highlight any selection made
+                return hv.VLine(0).opts(alpha=0) * hv.HLine(0).opts(alpha=0)
+            case 2:
+                # selection is in the lonalt axis
+                # highlight altitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 1])
+                x2 = np.max(self.selection_geom[0][:, 1])
+                return (hv.Area(([self.time_range_dt[0], self.time_range_dt[1]], [x1, x1], [x2, x2]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.HLines([x1, x2]).opts(color='black', line_dash='dashed'))
+            case 3:
+                # selection is in the latalt axis
+                # highlight altitude range of selection
+                x1 = np.min(self.selection_geom[0][:, 0])
+                x2 = np.max(self.selection_geom[0][:, 0])
+                return (hv.Area(([self.time_range_dt[0], self.time_range_dt[1]], [x1, x1], [x2, x2]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
+                        hv.HLines([x1, x2]).opts(color='black', line_dash='dashed'))
 
 
     def init_plot(self):
@@ -157,34 +253,42 @@ class LMADataExplorer:
         timefloats = color_by_time(self.ds.event_time.values)[-1]
 
         plan_points = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, timefloats), kdims=['lon', 'lat'], vdims=['time'])
-        plan_ax = hv.operation.datashader.datashade(plan_points, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=xlim, ylim=ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)#, tools=['hover'])
+        plan_ax = hv.operation.datashader.datashade(plan_points, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=xlim, ylim=ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
         plan_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         plan_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
+        plan_ax_selector.add_subscriber(self.handle_selection)
+        plan_ax_select_area = hv.DynamicMap(self.plan_ax_highlighter)
         # counties_shp = shapefile.Reader('ne_10m_admin_2_counties.shp').shapes()
         # counties_shp = [shape(counties_shp[i]) for i in range(len(counties_shp))]
         # plan_ax = gv.Path(counties_shp).opts(color='gray') * gf.borders().opts(color='black') * gf.states().opts(color='black', line_width=2) * plan_points
         plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_points).rename(x='plan_x', y='plan_y')
 
         lon_alt_ax = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, timefloats), kdims=['lon', 'alt'], vdims=['time'])
-        lon_alt_ax = hv.operation.datashader.datashade(lon_alt_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=xlim, ylim=zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])#, tools=['hover'])
+        lon_alt_ax = hv.operation.datashader.datashade(lon_alt_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=xlim, ylim=zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
         lon_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         lon_alt_ax_selector = hv.streams.PolyDraw(source=lon_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
+        lon_alt_ax_selector.add_subscriber(self.handle_selection)
+        lon_alt_select_area = hv.DynamicMap(self.lon_ax_highlighter)
         lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_alt_ax).rename(x='lon_x', y='lon_y')
 
 
-        hist_ax = hv.Histogram(np.histogram(self.ds.event_altitude.data, bins=np.arange(0, 20001, 1000)), kdims=['alt'], vdims=['src']).opts(width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.hist_edge_length, invert_axes=True).opts(hooks=[self.hook_xlabel_rotate, self.hook_hist_src_limiter, self.hook_yalt_limiter])#, tools=['hover'])
+        hist_ax = hv.Histogram(np.histogram(self.ds.event_altitude.data, bins=np.arange(0, 20001, 1000)), kdims=['alt'], vdims=['src']).opts(width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.hist_edge_length, invert_axes=True).opts(hooks=[self.hook_xlabel_rotate, self.hook_hist_src_limiter, self.hook_yalt_limiter])
 
         lat_alt_ax = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, timefloats), kdims=['alt', 'lat'], vdims=['time'])
-        lat_alt_ax = hv.operation.datashader.datashade(lat_alt_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=zlim, ylim=ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])#, tools=['hover'])
+        lat_alt_ax = hv.operation.datashader.datashade(lat_alt_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=zlim, ylim=ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
         lat_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         lat_alt_ax_selector = hv.streams.PolyDraw(source=lat_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
+        lat_alt_ax_selector.add_subscriber(self.handle_selection)
+        lat_alt_select_area = hv.DynamicMap(self.lat_ax_highlighter)
         lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_alt_ax).rename(x='lat_x', y='lat_y')
 
 
         alt_time_ax = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, timefloats), kdims=['time', 'alt'], vdims=['time'])
-        alt_time_ax = hv.operation.datashader.datashade(alt_time_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])#, toolbar=None, tools=['hover'])
+        alt_time_ax = hv.operation.datashader.datashade(alt_time_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
         alt_time_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         alt_time_ax_selector = hv.streams.PolyDraw(source=alt_time_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
+        alt_time_ax_selector.add_subscriber(self.handle_selection)
+        alt_time_select_area = hv.DynamicMap(self.time_ax_highlighter)
         alt_time_pointer = hv.streams.PointerXY(x=0, y=0, source=alt_time_ax).rename(x='time_x', y='time_y')
 
 
@@ -210,10 +314,10 @@ class LMADataExplorer:
                                     lon_x, lon_y, time_x, time_y, 'time'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
         
 
-        lon_alt_ax = (lon_alt_ax * lon_ax_crosshair * lon_alt_ax_polys).opts(active_tools=['wheel_zoom', 'poly_draw'])
-        plan_ax = (plan_ax * plan_ax_crosshair * plan_ax_polys).opts(active_tools=['wheel_zoom', 'poly_draw'])
-        lat_alt_ax = (lat_alt_ax * lat_ax_crosshair * lat_alt_ax_polys).opts(active_tools=['wheel_zoom', 'poly_draw'])
-        alt_time_ax = (alt_time_ax * time_ax_crosshair * alt_time_ax_polys).opts(active_tools=['wheel_zoom', 'poly_draw'])
+        lon_alt_ax = (lon_alt_ax * lon_ax_crosshair * lon_alt_ax_polys * lon_alt_select_area)
+        plan_ax = (plan_ax * plan_ax_crosshair * plan_ax_polys * plan_ax_select_area)
+        lat_alt_ax = (lat_alt_ax * lat_ax_crosshair * lat_alt_ax_polys * lat_alt_select_area)
+        alt_time_ax = (alt_time_ax * time_ax_crosshair * alt_time_ax_polys * alt_time_select_area)
 
         the_lower_part = (lon_alt_ax + hist_ax + plan_ax + lat_alt_ax).cols(2)
 
