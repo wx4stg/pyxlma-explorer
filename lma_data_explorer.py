@@ -73,6 +73,7 @@ class LMADataExplorer:
         if points_in_selection.sum() == 0:
             return
         self.ds = self.ds.isel(number_of_events=points_in_selection)
+        self.clear_all_polygons()
 
 
 
@@ -180,44 +181,43 @@ class LMADataExplorer:
         if len(data['xs']) == 0 or len(data['ys']) == 0:
             self.selection_geom = [np.array([]), 0]
             return
-        if self.selection_geom[-1] != 0:
-            if self.last_mouse_coord[-2] != self.selection_geom[-1]:
-                # selection is in a different axis than the last selection
-                # reset the polygons in the old axis
-                new_polys_plan = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
-                self.plan_ax_selector.source = new_polys_plan
-                
-                new_polys_lonalt = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
-                self.lon_alt_ax_selector.source = new_polys_lonalt
-
-                new_polys_latalt = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
-                self.lat_alt_ax_selector.source = new_polys_latalt
-
-                new_polys_alttime = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
-                self.alt_time_ax_selector.source = new_polys_alttime
-
-                new_plan_ax = (self.plan_points * self.plan_ax_crosshair * new_polys_plan * self.plan_ax_select_area).opts(xlim=self.plan_points.range('lon'), ylim=self.plan_points.range('lat'))
-                new_lon_alt_ax = (self.lon_alt_points * self.lon_ax_crosshair * new_polys_lonalt * self.lon_alt_select_area).opts(xlim=self.lon_alt_points.range('lon'), ylim=self.lon_alt_points.range('alt'))
-                new_lat_alt_ax = (self.lat_alt_points * self.lat_ax_crosshair * new_polys_latalt * self.lat_alt_select_area).opts(xlim=self.lat_alt_points.range('alt'), ylim=self.lat_alt_points.range('lat'))
-                new_alt_time_ax = (self.alt_time_points * self.time_ax_crosshair * new_polys_alttime * self.alt_time_select_area).opts(xlim=self.alt_time_points.range('time'), ylim=self.alt_time_points.range('alt'))
-
-                new_lower_part = (new_lon_alt_ax + self.hist_ax + new_plan_ax + new_lat_alt_ax).cols(2)
-
-                self.panelHandle[0][2].object = new_lower_part
-                self.panelHandle[0][1].object = new_alt_time_ax
-
-                self.selection_geom = [np.array([]), 0]
-
-                self.plan_points.range = self.panelHandle[0][2].object[2].range
-                self.lon_alt_points.range = self.panelHandle[0][2].object[0].range
-                self.lat_alt_points.range = self.panelHandle[0][2].object[3].range
-                self.alt_time_points.range = self.panelHandle[0][1].object.range
-
-                return
-            
-
+        if self.selection_geom[-1] != 0 and self.last_mouse_coord[-2] != 0 and self.last_mouse_coord[-2] != self.selection_geom[-1]:
+            # selection is in a different axis than the last selection
+            # reset the polygons in the old axis
+            self.clear_all_polygons()
+            return
         this_selection_geom = np.array([data['xs'], data['ys']]).T[:, 0, :]
         self.selection_geom = [this_selection_geom, self.last_mouse_coord[-2]]
+
+    def clear_all_polygons(self):
+        new_polys_plan = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+        self.plan_ax_selector.source = new_polys_plan
+        
+        new_polys_lonalt = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+        self.lon_alt_ax_selector.source = new_polys_lonalt
+
+        new_polys_latalt = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+        self.lat_alt_ax_selector.source = new_polys_latalt
+
+        new_polys_alttime = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+        self.alt_time_ax_selector.source = new_polys_alttime
+
+        new_plan_ax = (self.plan_points * self.plan_ax_crosshair * new_polys_plan * self.plan_ax_select_area).opts(xlim=self.plan_points.range('lon'), ylim=self.plan_points.range('lat'))
+        new_lon_alt_ax = (self.lon_alt_points * self.lon_ax_crosshair * new_polys_lonalt * self.lon_alt_select_area).opts(xlim=self.lon_alt_points.range('lon'), ylim=self.lon_alt_points.range('alt'))
+        new_lat_alt_ax = (self.lat_alt_points * self.lat_ax_crosshair * new_polys_latalt * self.lat_alt_select_area).opts(xlim=self.lat_alt_points.range('alt'), ylim=self.lat_alt_points.range('lat'))
+        new_alt_time_ax = (self.alt_time_points * self.time_ax_crosshair * new_polys_alttime * self.alt_time_select_area).opts(xlim=self.alt_time_points.range('time'), ylim=self.alt_time_points.range('alt'))
+
+        new_lower_part = (new_lon_alt_ax + self.hist_ax + new_plan_ax + new_lat_alt_ax).cols(2)
+
+        self.panelHandle[0][2].object = new_lower_part
+        self.panelHandle[0][1].object = new_alt_time_ax
+
+        self.selection_geom = [np.array([]), 0]
+
+        self.plan_points.range = self.panelHandle[0][2].object[2].range
+        self.lon_alt_points.range = self.panelHandle[0][2].object[0].range
+        self.lat_alt_points.range = self.panelHandle[0][2].object[3].range
+        self.alt_time_points.range = self.panelHandle[0][1].object.range
 
     def plan_ax_highlighter(self):
         match self.selection_geom[-1]:
