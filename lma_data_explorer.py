@@ -49,14 +49,31 @@ class LMADataExplorer:
         self.init_plot()
 
     def limit_to_polygon(self, limit_button):
-        global selection_geom
-        if selection_geom[0] == np.array([]):
+        if self.selection_geom[0] == np.array([]):
             return
-        select_path = mpl.path.Path(selection_geom[0], closed=True)
-        axis = selection_geom[-1]
-        if axis == 1:
-            print(select_path.contains_points(np.array([self.ds.event_longitude.data, self.ds.event_latitude.data]).T).shape)
-            print(self.ds.event_longitude.data.shape)
+        select_path = mpl.path.Path(self.selection_geom[0], closed=True)
+        axis = self.selection_geom[-1]
+        if axis == 0:
+            raise ValueError('Selection is in an unknown position, cannot limit to selection')
+        elif axis == 1:
+            # Selection in planview axis, filter by lon and lat
+            points_in_selection = select_path.contains_points(np.array([self.ds.event_longitude.data, self.ds.event_latitude.data]).T)
+        elif axis == 2:
+            # Selection in lonalt axis, filter by lon and alt
+            points_in_selection = select_path.contains_points(np.array([self.ds.event_longitude.data, self.ds.event_altitude.data]).T)
+        elif axis == 3:
+            # Selection in latalt axis, filter by lat and alt
+            points_in_selection = select_path.contains_points(np.array([self.ds.event_altitude.data, self.ds.event_latitude.data]).T)
+        elif axis == 4:
+            # Selection in time axis, filter by time and alt
+            select_path_arr = self.selection_geom[0]
+            select_path_arr[:, 0] = select_path_arr[:, 0]*1e6
+            select_path = mpl.path.Path(self.selection_geom[0], closed=True)
+            points_in_selection = select_path.contains_points(np.array([self.ds.event_time.data.astype(float), self.ds.event_altitude.data]).T)
+        if points_in_selection.sum() == 0:
+            return
+        self.ds = self.ds.isel(number_of_events=points_in_selection)
+
 
 
     def hook_hist_src_limiter(self, plot, element):
@@ -85,7 +102,24 @@ class LMADataExplorer:
     def hook_xlabel_rotate(self, plot, element):
         plot.state.xaxis.major_label_orientation = -np.pi/2
 
+    def plot_planview_points(self):
+        timefloats = color_by_time(self.ds.event_time.values)[-1]
+        return hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, timefloats), kdims=['lon', 'lat'], vdims=['time'])
+    
+    def plot_lonalt_points(self):
+        timefloats = color_by_time(self.ds.event_time.values)[-1]
+        return hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, timefloats), kdims=['lon', 'alt'], vdims=['time'])
+    
+    def plot_alt_hist(self):
+        return hv.Histogram(np.histogram(self.ds.event_altitude.data, bins=np.arange(0, 20001, 1000)), kdims=['alt'], vdims=['src']).opts(width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.hist_edge_length, invert_axes=True).opts(hooks=[self.hook_xlabel_rotate, self.hook_hist_src_limiter, self.hook_yalt_limiter])
 
+    def plot_latalt_points(self):
+        timefloats = color_by_time(self.ds.event_time.values)[-1]
+        return hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, timefloats), kdims=['alt', 'lat'], vdims=['time'])
+
+    def plot_alttime_points(self):
+        timefloats = color_by_time(self.ds.event_time.values)[-1]
+        return hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, timefloats), kdims=['time', 'alt'], vdims=['time'])
 
     def pointer_plotter(self, plan_x=None, plan_y=None, lat_x=None, lat_y=None,
                     lon_x=None, lon_y=None, time_x=None, time_y=None, target=None):
@@ -250,10 +284,8 @@ class LMADataExplorer:
         ylim = (self.ds.network_center_latitude.data - 3, self.ds.network_center_latitude.data + 3)
         zlim = (0, 20000)
 
-        timefloats = color_by_time(self.ds.event_time.values)[-1]
-
-        plan_points = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, timefloats), kdims=['lon', 'lat'], vdims=['time'])
-        plan_ax = hv.operation.datashader.datashade(plan_points, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=xlim, ylim=ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
+        plan_points = hv.DynamicMap(self.plot_planview_points)
+        plan_points = hv.operation.datashader.datashade(plan_points, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=xlim, ylim=ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
         plan_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         plan_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
         plan_ax_selector.add_subscriber(self.handle_selection)
@@ -263,7 +295,7 @@ class LMADataExplorer:
         # plan_ax = gv.Path(counties_shp).opts(color='gray') * gf.borders().opts(color='black') * gf.states().opts(color='black', line_width=2) * plan_points
         plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_points).rename(x='plan_x', y='plan_y')
 
-        lon_alt_ax = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, timefloats), kdims=['lon', 'alt'], vdims=['time'])
+        lon_alt_ax = hv.DynamicMap(self.plot_lonalt_points)
         lon_alt_ax = hv.operation.datashader.datashade(lon_alt_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=xlim, ylim=zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
         lon_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         lon_alt_ax_selector = hv.streams.PolyDraw(source=lon_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
@@ -272,9 +304,9 @@ class LMADataExplorer:
         lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_alt_ax).rename(x='lon_x', y='lon_y')
 
 
-        hist_ax = hv.Histogram(np.histogram(self.ds.event_altitude.data, bins=np.arange(0, 20001, 1000)), kdims=['alt'], vdims=['src']).opts(width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.hist_edge_length, invert_axes=True).opts(hooks=[self.hook_xlabel_rotate, self.hook_hist_src_limiter, self.hook_yalt_limiter])
+        hist_ax = hv.DynamicMap(self.plot_alt_hist)
 
-        lat_alt_ax = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, timefloats), kdims=['alt', 'lat'], vdims=['time'])
+        lat_alt_ax = hv.DynamicMap(self.plot_latalt_points)
         lat_alt_ax = hv.operation.datashader.datashade(lat_alt_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=zlim, ylim=ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
         lat_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         lat_alt_ax_selector = hv.streams.PolyDraw(source=lat_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
@@ -283,7 +315,7 @@ class LMADataExplorer:
         lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_alt_ax).rename(x='lat_x', y='lat_y')
 
 
-        alt_time_ax = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, timefloats), kdims=['time', 'alt'], vdims=['time'])
+        alt_time_ax = hv.DynamicMap(self.plot_alttime_points)
         alt_time_ax = hv.operation.datashader.datashade(alt_time_ax, aggregator=datashader.max('time'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
         alt_time_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         alt_time_ax_selector = hv.streams.PolyDraw(source=alt_time_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
@@ -315,7 +347,7 @@ class LMADataExplorer:
         
 
         lon_alt_ax = (lon_alt_ax * lon_ax_crosshair * lon_alt_ax_polys * lon_alt_select_area)
-        plan_ax = (plan_ax * plan_ax_crosshair * plan_ax_polys * plan_ax_select_area)
+        plan_ax = (plan_points * plan_ax_crosshair * plan_ax_polys * plan_ax_select_area)
         lat_alt_ax = (lat_alt_ax * lat_ax_crosshair * lat_alt_ax_polys * lat_alt_select_area)
         alt_time_ax = (alt_time_ax * time_ax_crosshair * alt_time_ax_polys * alt_time_select_area)
 
