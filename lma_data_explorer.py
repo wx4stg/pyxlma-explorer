@@ -83,7 +83,6 @@ class LMADataExplorer:
         self.rerender()
 
 
-
     def hook_hist_src_limiter(self, plot, element):
         init_xmax = plot.state.x_range.end
         plot.state.x_range = Range1d(0, init_xmax, bounds=(0, init_xmax))
@@ -114,6 +113,22 @@ class LMADataExplorer:
     def change_colorby(self, color_by_selector):
         self.color_by = color_by_selector
         self.rerender()
+
+
+    def plan_range_handle(self, x_range, y_range):
+        self.xlim = x_range
+        self.ylim = y_range
+
+    
+    def lonalt_range_handle(self, x_range, y_range):
+        self.xlim = x_range
+        self.zlim = y_range
+
+    
+    def latalt_range_handle(self, x_range, y_range):
+        self.zlim = x_range
+        self.ylim = y_range
+
 
     def plot_planview_points(self):
         if self.color_by == 'Time':
@@ -445,16 +460,19 @@ class LMADataExplorer:
     def rerender(self):
         new_plan_points = self.plot_planview_points()
         self.plan_ax_pointer.source = new_plan_points
+        self.plan_range_stream.source = new_plan_points
         new_polys_plan = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         self.plan_ax_selector.source = new_polys_plan
         
         new_lon_alt_points = self.plot_lonalt_points()
         self.lon_alt_ax_pointer.source = new_lon_alt_points
+        self.lon_alt_range_stream.source = new_lon_alt_points
         new_polys_lonalt = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         self.lon_alt_ax_selector.source = new_polys_lonalt
 
         new_lat_alt_points = self.plot_latalt_points()
         self.lat_alt_ax_pointer.source = new_lat_alt_points
+        self.lat_alt_range_stream.source = new_lat_alt_points
         new_polys_latalt = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         self.lat_alt_ax_selector.source = new_polys_latalt
 
@@ -463,6 +481,9 @@ class LMADataExplorer:
         new_polys_alttime = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         self.alt_time_ax_selector.source = new_polys_alttime
 
+        print(self.xlim)
+        print(self.ylim)
+        print(self.zlim)
         new_plan_ax = (new_plan_points * self.plan_ax_crosshair * new_polys_plan * self.plan_ax_select_area * self.plan_ax_bg).opts(xlim=self.xlim, ylim=self.ylim)
         new_lon_alt_ax = (new_lon_alt_points * self.lon_ax_crosshair * new_polys_lonalt * self.lon_alt_select_area).opts(xlim=self.xlim, ylim=self.zlim)
         new_lat_alt_ax = (new_lat_alt_points * self.lat_ax_crosshair * new_polys_latalt * self.lat_alt_select_area).opts(xlim=self.zlim, ylim=self.ylim)
@@ -592,6 +613,8 @@ class LMADataExplorer:
         plan_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
         plan_ax_selector.add_subscriber(self.handle_selection)
         plan_ax_select_area = hv.DynamicMap(self.plan_ax_highlighter)
+        self.plan_range_stream = hv.streams.RangeXY(source=plan_points)
+        self.plan_range_stream.add_subscriber(self.plan_range_handle)
         plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_points).rename(x='plan_x', y='plan_y')
 
         lon_alt_points = self.plot_lonalt_points()
@@ -599,6 +622,8 @@ class LMADataExplorer:
         lon_alt_ax_selector = hv.streams.PolyDraw(source=lon_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
         lon_alt_ax_selector.add_subscriber(self.handle_selection)
         lon_alt_select_area = hv.DynamicMap(self.lon_ax_highlighter)
+        self.lon_alt_range_stream = hv.streams.RangeXY(source=lon_alt_points)
+        self.lon_alt_range_stream.add_subscriber(self.lonalt_range_handle)
         lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_alt_points).rename(x='lon_x', y='lon_y')
 
 
@@ -609,6 +634,8 @@ class LMADataExplorer:
         lat_alt_ax_selector = hv.streams.PolyDraw(source=lat_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
         lat_alt_ax_selector.add_subscriber(self.handle_selection)
         lat_alt_select_area = hv.DynamicMap(self.lat_ax_highlighter)
+        self.lat_alt_range_stream = hv.streams.RangeXY(source=lat_alt_points)
+        self.lat_alt_range_stream.add_subscriber(self.latalt_range_handle)
         lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_alt_points).rename(x='lat_x', y='lat_y')
 
 
