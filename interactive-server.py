@@ -27,7 +27,6 @@ def datashader_switch_callback(datashader_switch_val):
     lmae.rerender()
 
 def polygon_limit_btn_callback(limit_button):
-    print('limiting to polygon')
     lmae.limit_to_polygon()
     global datashader_label
     datashader_label.value = f'Enable Datashader? ({lmae.ds.number_of_events.data.shape[0]} src)'
@@ -37,7 +36,7 @@ def polygon_limit_btn_callback(limit_button):
 
 
 # Bind widgets to callbacks
-pn.bind (datashader_switch_callback, datashader_switch, watch=True)
+pn.bind(datashader_switch_callback, datashader_switch, watch=True)
 pn.bind(lmae.change_colorby, color_by_selector, watch=True)
 pn.bind(polygon_limit_btn_callback, limit_button, watch=True)
 
