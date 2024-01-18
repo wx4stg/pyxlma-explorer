@@ -149,7 +149,7 @@ class LMADataExplorer:
                 lonbins = np.arange(lonmin, lonmax, latlonbinwidth)
                 hist, _, _ = np.histogram2d(self.ds.event_longitude.data, self.ds.event_latitude.data, bins=[lonbins, latbins])
                 hist[hist == 0] = np.nan
-                shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Longitude', 'Latitude']
+                shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Longitude', 'Latitude'], vdims=['Event Density']
                                   ).opts(hv.opts.Image(cmap='rainbow')).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
         elif self.color_by == 'Log Event Density':
             if self.should_datashade:
@@ -165,12 +165,12 @@ class LMADataExplorer:
                 lonbins = np.arange(lonmin, lonmax, latlonbinwidth)
                 hist, _, _ = np.histogram2d(self.ds.event_longitude.data, self.ds.event_latitude.data, bins=[lonbins, latbins])
                 hist[hist == 0] = np.nan
-                shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Longitude', 'Latitude']
+                shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Longitude', 'Latitude'], vdims=['Event Density']
                                   ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
         elif self.color_by == 'Altitude':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
             else:
                 shaded = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'Power']
                                    ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black')
@@ -228,7 +228,7 @@ class LMADataExplorer:
                 altbins = np.arange(altmin, altmax, altbinwidth)
                 hist, _, _ = np.histogram2d(self.ds.event_longitude.data, self.ds.event_altitude.data, bins=[lonbins, altbins])
                 hist[hist == 0] = np.nan
-                shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Longitude', 'Altitude'], vdims=['Log Event Density']
+                shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Longitude', 'Altitude'], vdims=['Event Density']
                                   ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter])
         elif self.color_by == 'Altitude':
             if self.should_datashade:
@@ -295,7 +295,7 @@ class LMADataExplorer:
                 altbins = np.arange(altmin, altmax, altbinwidth)
                 hist, _, _ = np.histogram2d(self.ds.event_altitude.data, self.ds.event_latitude.data, bins=[altbins, latbins])
                 hist[hist == 0] = np.nan
-                shaded = hv.Image((altbins[:-1]+altbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Altitude', 'Latitude'], vdims=['Log Event Density']
+                shaded = hv.Image((altbins[:-1]+altbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Altitude', 'Latitude'], vdims=['Event Density']
                                 ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
         elif self.color_by == 'Altitude':
             if self.should_datashade:
@@ -363,7 +363,7 @@ class LMADataExplorer:
                 altbins = np.arange(altmin, altmax, altbinwidth)
                 hist, _, _ = np.histogram2d(self.ds.event_time.data.astype(float), self.ds.event_altitude.data, bins=[timebins, altbins])
                 hist[hist == 0] = np.nan
-                shaded = hv.Image((timebins_ctr_dt, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Time', 'Altitude'], vdims=['Log Event Density']
+                shaded = hv.Image((timebins_ctr_dt, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Time', 'Altitude'], vdims=['Event Density']
                                   ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
         elif self.color_by == 'Altitude':
             if self.should_datashade:
@@ -463,12 +463,12 @@ class LMADataExplorer:
         new_polys_alttime = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         self.alt_time_ax_selector.source = new_polys_alttime
 
-        new_plan_ax = (new_plan_points * self.plan_ax_crosshair * new_polys_plan * self.plan_ax_select_area * self.plan_ax_bg).opts(xlim=self.plan_points.range('Longitude'), ylim=self.plan_points.range('Latitude'))
-        new_lon_alt_ax = (new_lon_alt_points * self.lon_ax_crosshair * new_polys_lonalt * self.lon_alt_select_area).opts(xlim=self.lon_alt_points.range('Longitude'), ylim=self.lon_alt_points.range('Altitude'))
-        new_lat_alt_ax = (new_lat_alt_points * self.lat_ax_crosshair * new_polys_latalt * self.lat_alt_select_area).opts(xlim=self.lat_alt_points.range('Altitude'), ylim=self.lat_alt_points.range('Latitude'))
+        new_plan_ax = (new_plan_points * self.plan_ax_crosshair * new_polys_plan * self.plan_ax_select_area * self.plan_ax_bg).opts(xlim=self.xlim, ylim=self.ylim)
+        new_lon_alt_ax = (new_lon_alt_points * self.lon_ax_crosshair * new_polys_lonalt * self.lon_alt_select_area).opts(xlim=self.xlim, ylim=self.zlim)
+        new_lat_alt_ax = (new_lat_alt_points * self.lat_ax_crosshair * new_polys_latalt * self.lat_alt_select_area).opts(xlim=self.zlim, ylim=self.ylim)
         new_hist_ax = hv.DynamicMap(self.plot_alt_hist)
         self.hist_ax = new_hist_ax
-        new_alt_time_ax = (new_alt_time_points * self.time_ax_crosshair * new_polys_alttime * self.alt_time_select_area).opts(xlim=self.alt_time_points.range('Time'), ylim=self.alt_time_points.range('Altitude'))
+        new_alt_time_ax = (new_alt_time_points * self.time_ax_crosshair * new_polys_alttime * self.alt_time_select_area).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim)
 
         new_lower_part = (new_lon_alt_ax + self.hist_ax + new_plan_ax + new_lat_alt_ax).cols(2)
 
@@ -476,11 +476,6 @@ class LMADataExplorer:
         self.panelHandle[1].object = new_alt_time_ax
 
         self.selection_geom = [np.array([]), 0]
-
-        self.plan_points.range = self.panelHandle[2].object[2].range
-        self.lon_alt_points.range = self.panelHandle[2].object[0].range
-        self.lat_alt_points.range = self.panelHandle[2].object[3].range
-        self.alt_time_points.range = self.panelHandle[1].object.range
 
         self.plan_points = new_plan_points
         self.lon_alt_points = new_lon_alt_points
