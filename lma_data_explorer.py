@@ -120,10 +120,10 @@ class LMADataExplorer:
             timefloats = color_by_time(self.ds.event_time.values)[-1]
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, timefloats, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'time_color', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('time_color'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('time_color'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
             else:
                 shaded = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, timefloats, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'time_color', 'Power']
-                                       ).opts(hv.opts.Points(color='time_color', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, line_color='black')
+                                       ).opts(hv.opts.Points(color='time_color', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black')
         elif self.color_by == 'Charge (User Assigned)':
             pass
         elif self.color_by == 'Charge (chargepol)':
@@ -131,14 +131,14 @@ class LMADataExplorer:
         elif self.color_by == 'Power (dBW)':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Power'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Power'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
             else:
                 shaded = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'Power']
-                                   ).opts(hv.opts.Points(color='Power', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, line_color='black')
+                                   ).opts(hv.opts.Points(color='Power', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black')
         elif self.color_by == 'Event Density':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
             else:
                 latlonbinwidth = 0.01
                 latmin = (np.min(self.ds.event_latitude.data) // latlonbinwidth )*latlonbinwidth
@@ -150,11 +150,11 @@ class LMADataExplorer:
                 hist, _, _ = np.histogram2d(self.ds.event_longitude.data, self.ds.event_latitude.data, bins=[lonbins, latbins])
                 hist[hist == 0] = np.nan
                 shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Longitude', 'Latitude']
-                                  ).opts(hv.opts.Image(cmap='rainbow')).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
+                                  ).opts(hv.opts.Image(cmap='rainbow')).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
         elif self.color_by == 'Log Event Density':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow', cnorm='log').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow', cnorm='log').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
             else:
                 latlonbinwidth = 0.01
                 latmin = (np.min(self.ds.event_latitude.data) // latlonbinwidth )*latlonbinwidth
@@ -166,14 +166,14 @@ class LMADataExplorer:
                 hist, _, _ = np.histogram2d(self.ds.event_longitude.data, self.ds.event_latitude.data, bins=[lonbins, latbins])
                 hist[hist == 0] = np.nan
                 shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Longitude', 'Latitude']
-                                  ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
+                                  ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
         elif self.color_by == 'Altitude':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length)
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'])
             else:
                 shaded = hv.Points((self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Latitude'], vdims=['Altitude', 'Time', 'Power']
-                                   ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, line_color='black')
+                                   ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black')
         # counties_shp = shapefile.Reader('ne_10m_admin_2_counties.shp').shapes()
         # counties_shp = [shape(counties_shp[i]) for i in range(len(counties_shp))]
         # shaded = shaded * gv.Path(counties_shp).opts(color='gray') * gf.borders().opts(color='black') * gf.states().opts(color='black', line_width=2)
@@ -184,10 +184,10 @@ class LMADataExplorer:
             timefloats = color_by_time(self.ds.event_time.values)[-1]
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_time.data, timefloats, self.ds.event_power), kdims=['Longitude', 'Altitude'], vdims=['Time', 'time_color', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('time_color'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('time_color'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter])
             else:
                 shaded = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_time.data, timefloats, self.ds.event_power), kdims=['Longitude', 'Altitude'], vdims=['Time', 'time_color', 'Power']
-                                   ).opts(hv.opts.Points(color='time_color', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, line_color='black', hooks=[self.hook_yalt_limiter])
+                                   ).opts(hv.opts.Points(color='time_color', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter])
         elif self.color_by == 'Charge (User Assigned)':
             pass
         elif self.color_by == 'Charge (chargepol)':
@@ -195,14 +195,14 @@ class LMADataExplorer:
         elif self.color_by == 'Power (dBW)':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Altitude'], vdims=['Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Power'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Power'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter])
             else:
                 shaded = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Altitude'], vdims=['Time', 'Power']
-                                   ).opts(hv.opts.Points(color='Power', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, line_color='black', hooks=[self.hook_yalt_limiter])
+                                   ).opts(hv.opts.Points(color='Power', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter])
         elif self.color_by == 'Event Density':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Altitude'], vdims=['Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter])
             else:
                 latlonbinwidth = 0.01
                 lonmin = (np.min(self.ds.event_longitude.data) // latlonbinwidth )*latlonbinwidth
@@ -215,11 +215,11 @@ class LMADataExplorer:
                 hist, _, _ = np.histogram2d(self.ds.event_longitude.data, self.ds.event_altitude.data, bins=[lonbins, altbins])
                 hist[hist == 0] = np.nan
                 shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Longitude', 'Altitude'], vdims=['Event Density']
-                                  ).opts(hv.opts.Image(cmap='rainbow')).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
+                                  ).opts(hv.opts.Image(cmap='rainbow')).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter])
         elif self.color_by == 'Log Event Density':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Altitude'], vdims=['Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow', cnorm='log').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow', cnorm='log').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter])
             else:
                 latlonbinwidth = 0.01
                 lonmin = (np.min(self.ds.event_longitude.data) // latlonbinwidth )*latlonbinwidth
@@ -232,14 +232,14 @@ class LMADataExplorer:
                 hist, _, _ = np.histogram2d(self.ds.event_longitude.data, self.ds.event_altitude.data, bins=[lonbins, altbins])
                 hist[hist == 0] = np.nan
                 shaded = hv.Image((lonbins[:-1]+latlonbinwidth/2, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Longitude', 'Altitude'], vdims=['Log Event Density']
-                                  ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
+                                  ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter])
         elif self.color_by == 'Altitude':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Altitude'], vdims=['Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter])
             else:
                 shaded = hv.Points((self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Longitude', 'Altitude'], vdims=['Time', 'Power']
-                                   ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, line_color='black', hooks=[self.hook_yalt_limiter])
+                                   ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter])
         
         return shaded
     
@@ -251,10 +251,10 @@ class LMADataExplorer:
             timefloats = color_by_time(self.ds.event_time.values)[-1]
             if self.should_datashade:
                 points = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, timefloats, self.ds.event_power), kdims=['Altitude', 'Latitude'], vdims=['Time', 'time_color', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('time_color'), cmap='rainbow').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('time_color'), cmap='rainbow').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
             else:
                 shaded = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, timefloats, self.ds.event_power), kdims=['Altitude', 'Latitude'], vdims=['Time', 'time_color', 'Power']
-                                   ).opts(hv.opts.Points(color='time_color', cmap='rainbow', size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                                   ).opts(hv.opts.Points(color='time_color', cmap='rainbow', size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
         elif self.color_by == 'Charge (User Assigned)':
             pass
         elif self.color_by == 'Charge (chargepol)':
@@ -262,14 +262,14 @@ class LMADataExplorer:
         elif self.color_by == 'Power (dBW)':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Altitude', 'Latitude'], vdims=['Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Power'), cmap='rainbow').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Power'), cmap='rainbow').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
             else:
                 shaded = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Altitude', 'Latitude'], vdims=['Time', 'Power']
-                          ).opts(hv.opts.Points(color='Power', cmap='rainbow', size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                          ).opts(hv.opts.Points(color='Power', cmap='rainbow', size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
         elif self.color_by == 'Event Density':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Altitude', 'Latitude'], vdims=['Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
             else:
                 latlonbinwidth = 0.01
                 latmin = (np.min(self.ds.event_latitude.data) // latlonbinwidth )*latlonbinwidth
@@ -282,11 +282,11 @@ class LMADataExplorer:
                 hist, _, _ = np.histogram2d(self.ds.event_altitude.data, self.ds.event_latitude.data, bins=[altbins, latbins])
                 hist[hist == 0] = np.nan
                 shaded = hv.Image((altbins[:-1]+altbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Altitude', 'Latitude'], vdims=['Event Density']
-                                  ).opts(hv.opts.Image(cmap='rainbow')).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                                  ).opts(hv.opts.Image(cmap='rainbow')).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
         elif self.color_by == 'Log Event Density':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Altitude', 'Latitude'], vdims=['Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow', cnorm='log').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow', cnorm='log').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
             else:
                 latlonbinwidth = 0.01
                 latmin = (np.min(self.ds.event_latitude.data) // latlonbinwidth )*latlonbinwidth
@@ -299,14 +299,14 @@ class LMADataExplorer:
                 hist, _, _ = np.histogram2d(self.ds.event_altitude.data, self.ds.event_latitude.data, bins=[altbins, latbins])
                 hist[hist == 0] = np.nan
                 shaded = hv.Image((altbins[:-1]+altbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Altitude', 'Latitude'], vdims=['Log Event Density']
-                                ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                                ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
         elif self.color_by == 'Altitude':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Altitude', 'Latitude'], vdims=['Time', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
             else:
                 shaded = hv.Points((self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, self.ds.event_power), kdims=['Altitude', 'Latitude'], vdims=['Time', 'Power']
-                          ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
+                          ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter])
         
         return shaded
 
@@ -315,10 +315,10 @@ class LMADataExplorer:
             timefloats = color_by_time(self.ds.event_time.values)[-1]
             if self.should_datashade:
                 points = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, timefloats, self.ds.event_power), kdims=['Time', 'Altitude'], vdims=['time_color', 'Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('time_color'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('time_color'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
             else:
                 shaded = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, timefloats, self.ds.event_power), kdims=['Time', 'Altitude'], vdims=['time_color', 'Power']
-                                   ).opts(hv.opts.Points(color='time_color', cmap='rainbow', size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                                   ).opts(hv.opts.Points(color='time_color', cmap='rainbow', size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
         elif self.color_by == 'Charge (User Assigned)':
             pass
         elif self.color_by == 'Charge (chargepol)':
@@ -326,14 +326,14 @@ class LMADataExplorer:
         elif self.color_by == 'Power (dBW)':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, self.ds.event_power), kdims=['Time', 'Altitude'], vdims=['Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Power'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Power'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
             else:
                 shaded = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, self.ds.event_power), kdims=['Time', 'Altitude'], vdims=['Power']
-                                   ).opts(hv.opts.Points(color='Power', cmap='rainbow', size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                                   ).opts(hv.opts.Points(color='Power', cmap='rainbow', size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
         elif self.color_by == 'Event Density':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, self.ds.event_power), kdims=['Time', 'Altitude'], vdims=['Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
             else:
                 timebinwidth = 1e9
                 tmin = (np.min(self.ds.event_time.data.astype(float)) // timebinwidth )*timebinwidth
@@ -348,11 +348,11 @@ class LMADataExplorer:
                 hist, _, _ = np.histogram2d(self.ds.event_time.data.astype(float), self.ds.event_altitude.data, bins=[timebins, altbins])
                 hist[hist == 0] = np.nan
                 shaded = hv.Image((timebins_ctr_dt, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Time', 'Altitude'], vdims=['Event Density']
-                                  ).opts(hv.opts.Image(cmap='rainbow')).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                                  ).opts(hv.opts.Image(cmap='rainbow')).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
         elif self.color_by == 'Log Event Density':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, self.ds.event_power), kdims=['Time', 'Altitude'], vdims=['Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow', cnorm='log').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.count(), cmap='rainbow', cnorm='log').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
             else:
                 timebinwidth = 1e9
                 tmin = (np.min(self.ds.event_time.data.astype(float)) // timebinwidth )*timebinwidth
@@ -367,14 +367,14 @@ class LMADataExplorer:
                 hist, _, _ = np.histogram2d(self.ds.event_time.data.astype(float), self.ds.event_altitude.data, bins=[timebins, altbins])
                 hist[hist == 0] = np.nan
                 shaded = hv.Image((timebins_ctr_dt, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Time', 'Altitude'], vdims=['Log Event Density']
-                                  ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                                  ).opts(hv.opts.Image(cmap='rainbow', cnorm='log')).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
         elif self.color_by == 'Altitude':
             if self.should_datashade:
                 points = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, self.ds.event_power), kdims=['Time', 'Altitude'], vdims=['Power'])
-                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                shaded = hv.operation.datashader.datashade(points, aggregator=datashader.max('Altitude'), cmap='rainbow').opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
             else:
                 shaded = hv.Points((self.ds.event_time.data, self.ds.event_altitude.data, self.ds.event_power), kdims=['Time', 'Altitude'], vdims=['Power']
-                                   ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
+                                   ).opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter])
         
         return shaded
 
