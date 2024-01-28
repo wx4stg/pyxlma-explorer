@@ -1,5 +1,5 @@
 import numpy as np
-from bokeh.models import Range1d
+from bokeh.models import Range1d, WheelZoomTool
 import matplotlib as mpl
 
 from pyxlma.lmalib.io import read as lma_read
@@ -88,16 +88,12 @@ class LMADataExplorer:
         plot.state.x_range = Range1d(0, init_xmax, bounds=(0, init_xmax))
 
     def hook_yalt_limiter(self, plot, element):
-        if plot.state.y_range.start < self.alt_min:
-            plot.state.y_range.start = self.alt_min
-        if plot.state.y_range.end > self.alt_max:
-            plot.state.y_range.end = self.alt_max
+        plot.state.select_one(WheelZoomTool).maintain_focus = False
+        plot.state.y_range = self.init_alt_range
 
     def hook_xalt_limiter(self, plot, element):
-        if plot.state.x_range.start < self.alt_min:
-            plot.state.x_range.start = self.alt_min
-        if plot.state.x_range.end > self.alt_max:
-            plot.state.x_range.end = self.alt_max
+        plot.state.select_one(WheelZoomTool).maintain_focus = False
+        plot.state.x_range = self.init_alt_range
 
     def hook_time_limiter(self, plot, element):
         if type(plot.state.x_range.start) == float:
@@ -481,9 +477,6 @@ class LMADataExplorer:
         new_polys_alttime = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
         self.alt_time_ax_selector.source = new_polys_alttime
 
-        print(self.xlim)
-        print(self.ylim)
-        print(self.zlim)
         new_plan_ax = (new_plan_points * self.plan_ax_crosshair * new_polys_plan * self.plan_ax_select_area * self.plan_ax_bg).opts(xlim=self.xlim, ylim=self.ylim)
         new_lon_alt_ax = (new_lon_alt_points * self.lon_ax_crosshair * new_polys_lonalt * self.lon_alt_select_area).opts(xlim=self.xlim, ylim=self.zlim)
         new_lat_alt_ax = (new_lat_alt_points * self.lat_ax_crosshair * new_polys_latalt * self.lat_alt_select_area).opts(xlim=self.zlim, ylim=self.ylim)
@@ -607,6 +600,10 @@ class LMADataExplorer:
         self.xlim = (self.ds.network_center_longitude.data - 3, self.ds.network_center_longitude.data + 3)
         self.ylim = (self.ds.network_center_latitude.data - 3, self.ds.network_center_latitude.data + 3)
         self.zlim = (0, 20000)
+
+        self.init_lon_range = Range1d(self.xlim[0], self.xlim[1])
+        self.init_lat_range = Range1d(self.ylim[0], self.ylim[1])
+        self.init_alt_range = Range1d(self.zlim[0], self.zlim[1], bounds=(0, 100000))
 
         plan_points = self.plot_planview_points()
         plan_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
