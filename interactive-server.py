@@ -13,25 +13,14 @@ datashader_switch_row = pn.Row(datashader_label, datashader_switch)
 color_by_selector = pn.widgets.Select(name='Color By', options=['Time', 'Charge (User Assigned)', 'Charge (chargepol)',
                                                                 'Power (dBW)', 'Event Density', 'Log Event Density', 'Altitude'], value='Time')
 
-lmae = LMADataExplorer(filename, color_by_selector, datashader_switch)
 ## Right controls
 limit_button = pn.widgets.Button(name='Limit to Selection', button_type='primary')
 
-
-
-
-## Define callbacks
-def polygon_limit_btn_callback(limit_button):
-    lmae.limit_to_polygon()
-    global datashader_label
-    datashader_label.value = f'Enable Datashader? ({lmae.ds.number_of_events.data.shape[0]} src)'
-
-
-
+lmae = LMADataExplorer(filename, color_by_selector, datashader_switch, datashader_label)
 
 
 # Bind widgets to callbacks
-pn.bind(polygon_limit_btn_callback, limit_button, watch=True)
+pn.bind(lmae.limit_to_polygon, limit_button, watch=True)
 
 
 ## Assemble layout
