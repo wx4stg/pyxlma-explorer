@@ -5,6 +5,8 @@ import matplotlib as mpl
 from os import path
 
 from pyxlma.lmalib.io import read as lma_read
+from pyxlma.lmalib.flash.cluster import cluster_flashes
+from pyxlma.lmalib.flash.properties import flash_stats, filter_flashes
 from pyxlma.plot.xlma_plot_feature import color_by_time
 
 from datetime import datetime as dt, timedelta
@@ -28,7 +30,8 @@ from functools import partial, reduce
 
 class LMADataExplorer:
     def __init__(self, filenames, px_scale=7, color_by_dropdown=None, datashade_switch=None,
-                 datashade_label=None, event_filter_controls=None, event_filter_table=None, html_pane=None):
+                 datashade_label=None, event_filter_controls=None, event_filter_table=None, html_pane=None,
+                 flash_id_selector=None, flash_filter_controls=None, flash_filter_table=None):
         self.filenames = filenames
         self.px_scale = px_scale
 
@@ -68,19 +71,38 @@ class LMADataExplorer:
         self.event_filter_type_selector = event_filter_controls[0]
         self.event_filter_op_selector = event_filter_controls[1]
         self.event_filter_value_input = event_filter_controls[2]
+        self.event_filter_table = event_filter_table
+        self.html_pane = html_pane
+        self.html_pane.object = self.ds
+        self.flash_id_selector = flash_id_selector
+        self.flash_filter_type_selector = flash_filter_controls[0]
+        self.flash_filter_op_selector = flash_filter_controls[1]
+        self.flash_filter_value_selector = flash_filter_controls[2]
+        self.update_type_selectors()
+        self.init_plot(color_by_dropdown, datashade_switch)
+
+
+    def update_type_selectors(self):
         options = {}
         for var in self.ds.data_vars:
-            if 'number_of_events' in ds[var].dims and len(ds[var].dims) == 1:
+            if 'number_of_events' in self.ds[var].dims and len(self.ds[var].dims) == 1:
                 pretty_text = var.replace('_', ' ').title().replace('Chi2', 'χ²').replace('Id', 'ID')
                 options[pretty_text] = var
         self.event_filter_type_selector.options = options
         if 'event_chi2' in self.event_filter_type_selector.options.values():
             self.event_filter_type_selector.value = 'event_chi2'
             self.event_filter_value_input.value = 1.0
-        self.event_filter_table = event_filter_table
-        self.html_pane = html_pane
-        self.html_pane.object = self.ds
-        self.init_plot(color_by_dropdown, datashade_switch)
+        options = {}
+        if 'number_of_flashes' in self.ds.dims:
+            for var in self.ds.data_vars:
+                if 'number_of_flashes' in self.ds[var].dims and len(self.ds[var].dims) == 1:
+                    pretty_text = var.replace('_', ' ').title().replace('Chi2', 'χ²').replace('Id', 'ID')
+                    options[pretty_text] = var
+            self.flash_filter_type_selector.options = options
+            if 'flash_event_count' in self.flash_filter_type_selector.options.values():
+                self.flash_filter_type_selector.value = 'flash_event_count'
+                self.flash_filter_value_selector.value = 75
+
 
     def limit_to_polygon(self, _):
         select_path_array = self.selection_geom[0]
@@ -212,6 +234,37 @@ class LMADataExplorer:
         self.html_pane.object = self.ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
+
+    
+    def cluster_flashes(self, _):
+        self.orig_dataset = self.orig_dataset.set_coords('number_of_stations')
+        print('clustering!')
+        self.orig_dataset = flash_stats(cluster_flashes(self.orig_dataset))
+        self.orig_dataset = self.orig_dataset.reset_coords('number_of_stations')
+        self.ds = self.orig_dataset.isel(number_of_events=np.prod(self.filter_history, axis=0).astype(bool))
+        self.html_pane.object = self.ds
+        self.flash_id_selector.start = int(np.min(self.ds.flash_id.data))
+        self.flash_id_selector.value = int(np.min(self.ds.flash_id.data))
+        self.flash_id_selector.end = int(np.max(self.ds.flash_id.data))
+        self.update_type_selectors()
+
+
+    def view_flash_id(self, _):
+        for filt in self.filter_history_pretty:
+            if 'Event Parent Flash ID' in filt:
+                self.remove_filter(filt, None)
+        flash_id = self.flash_id_selector.value
+        orig_filter_var = self.event_filter_type_selector.value
+        orig_filter_op_str = self.event_filter_op_selector.value
+        orig_filter_val = self.event_filter_value_input.value
+        self.event_filter_type_selector.value = 'event_parent_flash_id'
+        self.event_filter_op_selector.value = '=='
+        self.event_filter_value_input.value = flash_id
+        self.limit_to_filter(None)
+        self.event_filter_type_selector.value = orig_filter_var
+        self.event_filter_op_selector.value = orig_filter_op_str
+        self.event_filter_value_input.value = orig_filter_val
+
 
 
     def hook_hist_src_limiter(self, plot, element):
