@@ -26,9 +26,9 @@ from functools import partial, reduce
 
 
 class LMADataExplorer:
-    def __init__(self, filenames, color_by_dropdown=None, datashade_switch=None, datashade_label=None):
+    def __init__(self, filenames, px_scale=7, color_by_dropdown=None, datashade_switch=None, datashade_label=None, event_filter_controls=None, event_filter_table=None):
         self.filenames = filenames
-        self.px_scale = 7
+        self.px_scale = px_scale
 
         self.plan_edge_length = 60
         self.hist_edge_length = 20
@@ -56,7 +56,23 @@ class LMADataExplorer:
         self.datashade_label = datashade_label
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
         self.filter_history = np.ones_like(self.ds.number_of_events.data).reshape(1, -1)
+        self.filter_history_pretty = []
         self.bad_selection_flag = False
+        self.event_filter_controls = event_filter_controls
+        self.event_filter_type_selector = event_filter_controls[0]
+        self.event_filter_op_selector = event_filter_controls[1]
+        self.event_filter_value_input = event_filter_controls[2]
+        options = {}
+        for var in self.ds.data_vars:
+            if 'number_of_events' in ds[var].dims and len(ds[var].dims) == 1:
+                pretty_text = var.replace('_', ' ').title().replace('Chi2', 'χ²').replace('Id', 'ID')
+                options[pretty_text] = var
+        self.event_filter_type_selector.options = options
+        if 'event_chi2' in self.event_filter_type_selector.options.values():
+            self.event_filter_type_selector.value = 'event_chi2'
+            self.event_filter_value_input.value = 1.0
+        self.event_filter_table = event_filter_table
+
         self.init_plot(color_by_dropdown, datashade_switch)
 
     def limit_to_polygon(self, _):
@@ -93,6 +109,71 @@ class LMADataExplorer:
         self.ds = new_ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
+        poly_num = 1
+        for pretty_str in self.filter_history_pretty:
+            if 'Polygon' in pretty_str:
+                poly_num += 1
+        pretty_string = f'Polygon #{poly_num}'
+        self.filter_history_pretty.append(pretty_string)
+        self.event_filter_table[0].append(pn.pane.HTML(f'<h4>{pretty_string}</h4>', height=int(self.px_scale*6)))
+        remove_button = pn.widgets.Button(icon='square-x-filled', button_type='danger', button_style='outline', width=int(self.px_scale*6), height=int(self.px_scale*6))
+        this_remove = partial(self.remove_filter, value_to_remove=pretty_string)
+        pn.bind(this_remove, unused=remove_button, watch=True)
+        self.event_filter_table[1].append(remove_button)
+
+
+    def limit_to_filter(self, _):
+        filter_var = self.event_filter_type_selector.value
+        filter_op_str = self.event_filter_op_selector.value
+        filter_val = self.event_filter_value_input.value
+        variable_filtered_pretty = list(self.event_filter_type_selector.options.keys())[self.event_filter_type_selector.values.index(filter_var)]
+        pretty_string = f'{variable_filtered_pretty} {filter_op_str} {filter_val}'
+        if pretty_string in self.filter_history_pretty:
+            print('already filtered by this')
+            return
+        if filter_op_str == '==':
+            filter_op = np.equal
+        elif filter_op_str == '>':
+            filter_op = np.greater
+        elif filter_op_str == '<':
+            filter_op = np.less
+        elif filter_op_str == '>=':
+            filter_op = np.greater_equal
+        elif filter_op_str == '<=':
+            filter_op = np.less_equal
+        elif filter_op_str == '!=':
+            filter_op = np.not_equal
+        filter_vals = self.orig_dataset[filter_var].data
+        filter_result = filter_op(filter_vals, filter_val)
+        new_filter_history = np.append(self.filter_history, filter_result.reshape(1, -1), axis=0)
+        values_to_plot = np.prod(new_filter_history, axis=0)
+        new_ds = self.orig_dataset.isel(number_of_events=values_to_plot.astype(bool))
+        if new_ds.number_of_events.data.shape[0] == 0:
+            print('no events in selection')
+            return
+        self.ds = new_ds
+        self.filter_history = new_filter_history
+        self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
+        self.filter_history_pretty.append(pretty_string)
+        self.event_filter_table[0].append(pn.pane.HTML(f'<h4>{pretty_string}</h4>', height=int(self.px_scale*6)))
+        remove_button = pn.widgets.Button(icon='square-x-filled', button_type='danger', button_style='outline', width=int(self.px_scale*6), height=int(self.px_scale*6))
+        this_remove = partial(self.remove_filter, value_to_remove=pretty_string)
+        pn.bind(this_remove, unused=remove_button, watch=True)
+        self.event_filter_table[1].append(remove_button)
+
+
+    def remove_filter(self, value_to_remove, unused):
+        idx_to_remove = self.filter_history_pretty.index(value_to_remove)
+        self.filter_history_pretty.pop(idx_to_remove)
+        self.event_filter_table[0].pop(idx_to_remove)
+        self.event_filter_table[1].pop(idx_to_remove)
+        new_filter_history = np.delete(self.filter_history, idx_to_remove+1, axis=0)
+        values_to_plot = np.prod(new_filter_history, axis=0)
+        new_ds = self.orig_dataset.isel(number_of_events=values_to_plot.astype(bool))
+        self.ds = new_ds
+        self.filter_history = new_filter_history
+        self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
+
 
 
     def hook_hist_src_limiter(self, plot, element):
@@ -723,7 +804,7 @@ class LMADataExplorer:
         netw_name = netw_name.replace('LMA', '').replace('_', ' ').replace('  ', ' ')
 
 
-        title = pn.pane.Markdown(f'## {netw_name} LMA on {self.time_range_py_dt[0].strftime("%d %b %Y")}', styles={'text-align': 'center'})
+        title = pn.pane.HTML(f'<h2>{netw_name} LMA on {self.time_range_py_dt[0].strftime("%d %b %Y")}</h2>')#, styles={'text-align': 'center'})
 
         self.panelHandle  = pn.Column(title, alt_time_ax, the_lower_part)
 
