@@ -46,7 +46,7 @@ class LMADataExplorer:
         ds, start_time = lma_read.dataset(filenames)
         if 'event_assigned_charge' not in ds.data_vars:
             ds = ds.set_coords('number_of_stations')
-            ds['event_assigned_charge'] = xr.zeros_like(ds['number_of_events'], dtype=np.uint8)
+            ds['event_assigned_charge'] = xr.zeros_like(ds['number_of_events'], dtype=np.int8)
             ds = ds.reset_coords('number_of_stations')
         self.orig_dataset = ds
         self.ds = ds
@@ -114,17 +114,47 @@ class LMADataExplorer:
         self.ds = new_ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
-        poly_num = 1
+        poly_num = 0
         for pretty_str in self.filter_history_pretty:
             if 'Polygon' in pretty_str:
-                poly_num += 1
-        pretty_string = f'Polygon #{poly_num}'
+                poly_num = int(pretty_str.replace('Polygon #', ''))
+        pretty_string = f'Polygon #{poly_num+1}'
         self.filter_history_pretty.append(pretty_string)
         self.event_filter_table[0].append(pn.pane.HTML(f'<h4>{pretty_string}</h4>', height=int(self.px_scale*6)))
         remove_button = pn.widgets.Button(icon='square-x-filled', button_type='danger', button_style='outline', width=int(self.px_scale*6), height=int(self.px_scale*6))
         this_remove = partial(self.remove_filter, value_to_remove=pretty_string)
         pn.bind(this_remove, unused=remove_button, watch=True)
         self.event_filter_table[1].append(remove_button)
+
+
+    def mark_polygon(self, mark, unused):
+        print(f'Marking {mark}')
+        select_path_array = self.selection_geom[0]
+        select_path = mpl.path.Path(self.selection_geom[0], closed=True)
+        axis = self.selection_geom[-1]
+        self.selection_geom = [np.array([]), 0]
+        if select_path == np.array([]) or self.bad_selection_flag or axis == 0:
+            return
+        elif axis == 1:
+            # Selection in planview axis, filter by lon and lat
+            points_in_selection = select_path.contains_points(np.array([self.ds.event_longitude.data, self.ds.event_latitude.data]).T)
+        elif axis == 2:
+            # Selection in lonalt axis, filter by lon and alt
+            points_in_selection = select_path.contains_points(np.array([self.ds.event_longitude.data, self.ds.event_altitude.data]).T)
+        elif axis == 3:
+            # Selection in latalt axis, filter by lat and alt
+            points_in_selection = select_path.contains_points(np.array([self.ds.event_altitude.data, self.ds.event_latitude.data]).T)
+        elif axis == 4:
+            # Selection in time axis, filter by time and alt
+            select_path_array[:, 0] = select_path_array[:, 0]*1e6
+            select_path = mpl.path.Path(select_path_array, closed=True)
+            points_in_selection = select_path.contains_points(np.array([self.ds.event_time.data.astype(float), self.ds.event_altitude.data]).T)
+        if points_in_selection.sum() == 0:
+            print('no points in selection')
+            return
+        points_to_mark = self.ds.isel(number_of_events=points_in_selection.astype(bool)).event_id.data
+        self.ds['event_assigned_charge'].data[np.isin(self.ds['event_id'].data, points_to_mark)] = mark
+        self.orig_dataset['event_assigned_charge'].data[np.isin(self.orig_dataset['event_id'].data, points_to_mark)] = mark
 
 
     def limit_to_filter(self, _):
@@ -227,21 +257,21 @@ class LMADataExplorer:
 
     def things_to_plot(self, should_timefloat, ax):
         if ax == 'plan':
-            data = [self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_altitude.data, self.ds.event_time.data, self.ds.event_power.data]
+            data = [self.ds.event_longitude, self.ds.event_latitude, self.ds.event_altitude, self.ds.event_time, self.ds.event_power, self.ds.event_assigned_charge]
             kdims = ['Longitude', 'Latitude']
-            vdims = ['Altitude', 'Time', 'Power']
+            vdims = ['Altitude', 'Time', 'Power', 'Charge (User Assigned)']
         elif ax == 'lonalt':
-            data = [self.ds.event_longitude.data, self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_time.data, self.ds.event_power.data]
+            data = [self.ds.event_longitude, self.ds.event_altitude, self.ds.event_latitude, self.ds.event_time, self.ds.event_power, self.ds.event_assigned_charge]
             kdims = ['Longitude', 'Altitude']
-            vdims = ['Latitude', 'Time', 'Power']
+            vdims = ['Latitude', 'Time', 'Power', 'Charge (User Assigned)']
         elif ax == 'latalt':
-            data = [self.ds.event_altitude.data, self.ds.event_latitude.data, self.ds.event_longitude.data, self.ds.event_time.data, self.ds.event_power.data]
+            data = [self.ds.event_altitude, self.ds.event_latitude, self.ds.event_longitude, self.ds.event_time, self.ds.event_power, self.ds.event_assigned_charge]
             kdims = ['Altitude', 'Latitude']
-            vdims = ['Longitude', 'Time', 'Power']
+            vdims = ['Longitude', 'Time', 'Power', 'Charge (User Assigned)']
         elif ax == 'alttime':
-            data = [self.ds.event_time.data, self.ds.event_altitude.data, self.ds.event_longitude.data, self.ds.event_latitude.data, self.ds.event_power.data]
+            data = [self.ds.event_time, self.ds.event_altitude, self.ds.event_longitude, self.ds.event_latitude, self.ds.event_power, self.ds.event_assigned_charge]
             kdims = ['Time', 'Altitude']
-            vdims = ['Longitude', 'Latitude', 'Power']
+            vdims = ['Longitude', 'Latitude', 'Power', 'Charge (User Assigned)']
         if should_timefloat:
             timefloats = color_by_time(self.ds.event_time.values, tlim=self.time_range_dt)[-1]
             data.append(timefloats)
@@ -310,16 +340,30 @@ class LMADataExplorer:
         if color_by == 'Time':
             should_i_timefloat = True
             agg = 'Seconds since start'
+            cmap = 'rainbow'
         elif color_by == 'Charge (User Assigned)':
-            pass
+            agg = 'Charge (User Assigned)'
+            cmap = ['blue', 'green', 'red']
+            print('NEGATIVE:')
+            print(self.ds.where(self.ds.event_assigned_charge == -1, drop=True).event_id.data)
+            print(self.ds.where(self.ds.event_assigned_charge == -1, drop=True).event_id.data.shape)
+            print('UNASSIGNED:')
+            print(self.ds.where(self.ds.event_assigned_charge == 0, drop=True).event_id.data)
+            print(self.ds.where(self.ds.event_assigned_charge == 0, drop=True).event_id.data.shape)
+            print('POSITIVE:')
+            print(self.ds.where(self.ds.event_assigned_charge == 1, drop=True).event_id.data)
+            print(self.ds.where(self.ds.event_assigned_charge == 1, drop=True).event_id.data.shape)
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = 'Power'
+            cmap = 'rainbow'
         elif color_by == 'Altitude':
             agg = 'Altitude'
+            cmap = 'rainbow'
         elif 'Event Density' in color_by:
             agg = None
+            cmap = 'rainbow'
             latlonbinwidth = 0.01
             latmin = (np.min(self.ds.event_latitude.data) // latlonbinwidth )*latlonbinwidth
             latmax = (np.max(self.ds.event_latitude.data) // latlonbinwidth + 1)*latlonbinwidth
@@ -334,14 +378,14 @@ class LMADataExplorer:
             else:
                 this_cnorm = 'linear'
             img = hv.Image((lonbins[:-1]+latlonbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Longitude', 'Latitude'], vdims=['Event Density']
-                                ).opts(hv.opts.Image(cmap='rainbow', cnorm=this_cnorm)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim,
+                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim,
                                                                                              width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], visible=not should_datashade)
         if agg is None:
             points = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Latitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'plan')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
-            points = points.opts(hv.opts.Points(color=agg, cmap='rainbow', size=5)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', visible=not should_datashade)
+            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, size=5)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', visible=not should_datashade)
             img = hv.Image((np.array([0, 1]), np.array([0, 1]), np.array([[0,0],[0,0]])), kdims=kdims, vdims=[agg]).opts(visible=False)
         return points * img
 
@@ -350,16 +394,21 @@ class LMADataExplorer:
         if color_by == 'Time':
             should_i_timefloat = True
             agg = 'Seconds since start'
+            cmap = 'rainbow'
         elif color_by == 'Charge (User Assigned)':
-            pass
+            agg = 'Charge (User Assigned)'
+            cmap = ['blue', 'green', 'red']
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = 'Power'
+            cmap = 'rainbow'
         elif color_by == 'Altitude':
             agg = 'Altitude'
+            cmap = 'rainbow'
         elif 'Event Density' in color_by:
             agg = None
+            cmap = 'rainbow'
             latlonbinwidth = 0.01
             lonmin = (np.min(self.ds.event_longitude.data) // latlonbinwidth )*latlonbinwidth
             lonmax = (np.max(self.ds.event_longitude.data) // latlonbinwidth + 1)*latlonbinwidth
@@ -375,13 +424,13 @@ class LMADataExplorer:
             else:
                 this_cnorm = 'linear'
             img = hv.Image((lonbins[:-1]+latlonbinwidth/2, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Longitude', 'Altitude'], vdims=['Event Density']
-                                ).opts(hv.opts.Image(cmap='rainbow', cnorm=this_cnorm)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter], visible=not should_datashade)
+                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter], visible=not should_datashade)
         if agg is None:
             points = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Altitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'lonalt')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
-            points = points.opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter], visible=not should_datashade)
+            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter], visible=not should_datashade)
             img = hv.Image((np.array([0, 1]), np.array([0, 1]), np.array([[0,0],[0,0]])), kdims=kdims, vdims=[agg]).opts(visible=False)
         return points * img
     
@@ -395,16 +444,21 @@ class LMADataExplorer:
         if color_by == 'Time':
             should_i_timefloat = True
             agg = 'Seconds since start'
+            cmap = 'rainbow'
         elif color_by == 'Charge (User Assigned)':
-            pass
+            agg = 'Charge (User Assigned)'
+            cmap = ['blue', 'green', 'red']
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = 'Power'
+            cmap = 'rainbow'
         elif color_by == 'Altitude':
             agg = 'Altitude'
+            cmap = 'rainbow'
         elif 'Event Density' in color_by:
             agg = None
+            cmap = 'rainbow'
             latlonbinwidth = 0.01
             latmin = (np.min(self.ds.event_latitude.data) // latlonbinwidth )*latlonbinwidth
             latmax = (np.max(self.ds.event_latitude.data) // latlonbinwidth + 1)*latlonbinwidth
@@ -420,13 +474,13 @@ class LMADataExplorer:
             else:
                 this_cnorm = 'linear'
             img = hv.Image((altbins[:-1]+altbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Altitude', 'Latitude'], vdims=['Event Density']
-                                ).opts(hv.opts.Image(cmap='rainbow', cnorm=this_cnorm)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter], visible=not should_datashade)
+                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter], visible=not should_datashade)
         if agg is None:
             points = hv.Points(([0], [0], [0]), kdims=['Altitude', 'Latitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'latalt')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
-            points = points.opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter], visible=not should_datashade)
+            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter], visible=not should_datashade)
             img = hv.Image((np.array([0, 1]), np.array([0, 1]), np.array([[0,0],[0,0]])), kdims=kdims, vdims=[agg]).opts(visible=False)
         return points * img
 
@@ -436,16 +490,21 @@ class LMADataExplorer:
         if color_by == 'Time':
             should_i_timefloat = True
             agg = 'Seconds since start'
+            cmap = 'rainbow'
         elif color_by == 'Charge (User Assigned)':
-            pass
+            agg = 'Charge (User Assigned)'
+            cmap = ['blue', 'green', 'red']
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = 'Power'
+            cmap = 'rainbow'
         elif color_by == 'Altitude':
             agg = 'Altitude'
+            cmap = 'rainbow'
         elif 'Event Density' in color_by:
             agg = None
+            cmap = 'rainbow'
             timebinwidth = 1e9
             tmin = (np.min(self.ds.event_time.data.astype(float)) // timebinwidth )*timebinwidth
             tmax = (np.max(self.ds.event_time.data.astype(float)) // timebinwidth + 1)*timebinwidth
@@ -463,13 +522,13 @@ class LMADataExplorer:
             else:
                 this_cnorm = 'linear'
             img = hv.Image((timebins_ctr_dt, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Time', 'Altitude'], vdims=['Event Density']
-                                ).opts(hv.opts.Image(cmap='rainbow', cnorm=this_cnorm)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
+                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
         if agg is None:
             points = hv.Points(([self.ds.event_time.data[0]], [0], [0]), kdims=['Time', 'Altitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'alttime')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
-            points = points.opts(hv.opts.Points(color='Altitude', cmap='rainbow', size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
+            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
             img = hv.Image((np.array([self.ds.event_time.data[0], self.ds.event_time.data[-1]]), np.array([0, 1]), np.array([[0,0],[0,0]])), kdims=kdims, vdims=[agg]).opts(visible=False)
         return points * img
     

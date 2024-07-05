@@ -22,10 +22,11 @@ event_filter_controls = pn.Row(event_filter_type_selector, event_filter_operatio
 event_filter_history = pn.Row(pn.Column(width=width_of_major//2), pn.Column(width=width_of_major//2), width=width_of_major)
 
 ## Right controls
-limit_button = pn.widgets.Button(name='Limit to Selection', button_type='primary')
-mark_plus_button = pn.widgets.Button(name='Mark positive', icon='plus', width=width_of_major//10)
-mark_minus_button = pn.widgets.Button(name='Mark negative', icon='minus', width=width_of_major//10)
-mark_unassigned_button = pn.widgets.Button(name='Mark unassigned', icon='circle-off', width=width_of_major//10)
+limit_button = pn.widgets.Button(name='Limit to Selection', button_type='primary', width=width_of_major//5)
+mark_plus_button = pn.widgets.Button(name='Mark positive', button_type='danger', width=width_of_major//5)
+mark_minus_button = pn.widgets.Button(name='Mark negative', button_type='primary', width=width_of_major//5)
+mark_unassigned_button = pn.widgets.Button(name='Mark unassigned', button_type='success', width=width_of_major//5)
+poly_buttons_row = pn.Column(limit_button, pn.Row(mark_plus_button, mark_minus_button, mark_unassigned_button, width=width_of_major), width=width_of_major)
 
 ## init lma explorer object
 lmae = LMADataExplorer(filenames, 7, color_by_selector, datashader_switch, datashader_label, event_filter_controls, event_filter_history)
@@ -34,11 +35,14 @@ lmae = LMADataExplorer(filenames, 7, color_by_selector, datashader_switch, datas
 # Bind widgets to callbacks
 pn.bind(lmae.limit_to_polygon, limit_button, watch=True)
 pn.bind(lmae.limit_to_filter, event_filter_add, watch=True)
+pn.bind(lmae.mark_polygon, mark=1, unused=mark_plus_button, watch=True)
+pn.bind(lmae.mark_polygon, mark=-1, unused=mark_minus_button, watch=True)
+pn.bind(lmae.mark_polygon, mark=0, unused=mark_unassigned_button, watch=True)
 
 
 ## Assemble layout
 left_controls = pn.Column(datashader_switch_row, color_by_selector, pn.pane.HTML('<h4>Filters:</h4>'), event_filter_controls, event_filter_history, width=width_of_major, height=900)
-right_controls = pn.Column(limit_button, width=width_of_major)
+right_controls = pn.Column(poly_buttons_row, width=width_of_major)
 the_layout = pn.Row(left_controls, lmae.panelHandle, right_controls)
 
 ## Start server
