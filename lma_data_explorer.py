@@ -128,7 +128,6 @@ class LMADataExplorer:
 
 
     def mark_polygon(self, mark, unused):
-        print(f'Marking {mark}')
         select_path_array = self.selection_geom[0]
         select_path = mpl.path.Path(self.selection_geom[0], closed=True)
         axis = self.selection_geom[-1]
@@ -284,26 +283,33 @@ class LMADataExplorer:
         if color_by == 'Time':
             should_i_timefloat = True
             agg = datashader.max('Seconds since start')
+            this_cmap = 'rainbow'
             this_cnorm = 'linear'
         elif color_by == 'Charge (User Assigned)':
-            pass
+            agg = datashader.by('Charge (User Assigned)', datashader.max('Charge (User Assigned)'))
+            this_cmap = ['blue', 'green', 'red']
+            this_cnorm = 'linear'
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = datashader.max('Power')
+            this_cmap = 'rainbow'
             this_cnorm = 'linear'
         elif color_by == 'Event Density':
             agg = datashader.count()
+            this_cmap = 'rainbow'
             this_cnorm = 'linear'
         elif color_by == 'Log Event Density':
             agg = datashader.count()
+            this_cmap = 'rainbow'
             this_cnorm = 'log'
         elif color_by == 'Altitude':
             agg = datashader.max('Altitude')
+            this_cmap = 'rainbow'
             this_cnorm = 'linear'
         data, kdims, vdims = self.things_to_plot(should_i_timefloat, ax)
         points = hv.Points(data, kdims=kdims, vdims=vdims)
-        shaded = hv.operation.datashader.datashade(points, aggregator=agg, cmap='rainbow', cnorm=this_cnorm, dynamic=True).opts(tools=['hover'])
+        shaded = hv.operation.datashader.datashade(points, aggregator=agg, cmap=this_cmap, cnorm=this_cnorm, dynamic=True).opts(tools=['hover'])
         if ax == 'plan':
             this_proj = ccrs.PlateCarree()
             this_xlim = self.xlim
@@ -341,29 +347,25 @@ class LMADataExplorer:
             should_i_timefloat = True
             agg = 'Seconds since start'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif color_by == 'Charge (User Assigned)':
             agg = 'Charge (User Assigned)'
             cmap = ['blue', 'green', 'red']
-            print('NEGATIVE:')
-            print(self.ds.where(self.ds.event_assigned_charge == -1, drop=True).event_id.data)
-            print(self.ds.where(self.ds.event_assigned_charge == -1, drop=True).event_id.data.shape)
-            print('UNASSIGNED:')
-            print(self.ds.where(self.ds.event_assigned_charge == 0, drop=True).event_id.data)
-            print(self.ds.where(self.ds.event_assigned_charge == 0, drop=True).event_id.data.shape)
-            print('POSITIVE:')
-            print(self.ds.where(self.ds.event_assigned_charge == 1, drop=True).event_id.data)
-            print(self.ds.where(self.ds.event_assigned_charge == 1, drop=True).event_id.data.shape)
+            clim = (-1, 1)
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = 'Power'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif color_by == 'Altitude':
             agg = 'Altitude'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif 'Event Density' in color_by:
             agg = None
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
             latlonbinwidth = 0.01
             latmin = (np.min(self.ds.event_latitude.data) // latlonbinwidth )*latlonbinwidth
             latmax = (np.max(self.ds.event_latitude.data) // latlonbinwidth + 1)*latlonbinwidth
@@ -378,14 +380,14 @@ class LMADataExplorer:
             else:
                 this_cnorm = 'linear'
             img = hv.Image((lonbins[:-1]+latlonbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Longitude', 'Latitude'], vdims=['Event Density']
-                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim,
+                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm, clim=clim)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim,
                                                                                              width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], visible=not should_datashade)
         if agg is None:
             points = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Latitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'plan')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
-            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, size=5)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', visible=not should_datashade)
+            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, clim=clim, size=5)).opts(projection=ccrs.PlateCarree(), xlim=self.xlim, ylim=self.ylim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', visible=not should_datashade)
             img = hv.Image((np.array([0, 1]), np.array([0, 1]), np.array([[0,0],[0,0]])), kdims=kdims, vdims=[agg]).opts(visible=False)
         return points * img
 
@@ -395,20 +397,25 @@ class LMADataExplorer:
             should_i_timefloat = True
             agg = 'Seconds since start'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif color_by == 'Charge (User Assigned)':
             agg = 'Charge (User Assigned)'
             cmap = ['blue', 'green', 'red']
+            clim = (-1, 1)
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = 'Power'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif color_by == 'Altitude':
             agg = 'Altitude'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif 'Event Density' in color_by:
             agg = None
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
             latlonbinwidth = 0.01
             lonmin = (np.min(self.ds.event_longitude.data) // latlonbinwidth )*latlonbinwidth
             lonmax = (np.max(self.ds.event_longitude.data) // latlonbinwidth + 1)*latlonbinwidth
@@ -424,13 +431,13 @@ class LMADataExplorer:
             else:
                 this_cnorm = 'linear'
             img = hv.Image((lonbins[:-1]+latlonbinwidth/2, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Longitude', 'Altitude'], vdims=['Event Density']
-                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter], visible=not should_datashade)
+                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm, clim=clim)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter], visible=not should_datashade)
         if agg is None:
             points = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Altitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'lonalt')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
-            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter], visible=not should_datashade)
+            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, clim=clim, size=5)).opts(xlim=self.xlim, ylim=self.zlim, width=self.px_scale*self.plan_edge_length, height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter], visible=not should_datashade)
             img = hv.Image((np.array([0, 1]), np.array([0, 1]), np.array([[0,0],[0,0]])), kdims=kdims, vdims=[agg]).opts(visible=False)
         return points * img
     
@@ -445,20 +452,25 @@ class LMADataExplorer:
             should_i_timefloat = True
             agg = 'Seconds since start'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif color_by == 'Charge (User Assigned)':
             agg = 'Charge (User Assigned)'
             cmap = ['blue', 'green', 'red']
+            clim = (-1, 1)
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = 'Power'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif color_by == 'Altitude':
             agg = 'Altitude'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif 'Event Density' in color_by:
             agg = None
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
             latlonbinwidth = 0.01
             latmin = (np.min(self.ds.event_latitude.data) // latlonbinwidth )*latlonbinwidth
             latmax = (np.max(self.ds.event_latitude.data) // latlonbinwidth + 1)*latlonbinwidth
@@ -474,13 +486,13 @@ class LMADataExplorer:
             else:
                 this_cnorm = 'linear'
             img = hv.Image((altbins[:-1]+altbinwidth/2, latbins[:-1]+latlonbinwidth/2, hist.T), kdims=['Altitude', 'Latitude'], vdims=['Event Density']
-                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter], visible=not should_datashade)
+                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm, clim=clim)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter], visible=not should_datashade)
         if agg is None:
             points = hv.Points(([0], [0], [0]), kdims=['Altitude', 'Latitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'latalt')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
-            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter], visible=not should_datashade)
+            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, clim=clim, size=5)).opts(xlim=self.zlim, ylim=self.ylim, width=self.px_scale*self.hist_edge_length, height=self.px_scale*self.plan_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_xlabel_rotate, self.hook_xalt_limiter], visible=not should_datashade)
             img = hv.Image((np.array([0, 1]), np.array([0, 1]), np.array([[0,0],[0,0]])), kdims=kdims, vdims=[agg]).opts(visible=False)
         return points * img
 
@@ -491,20 +503,25 @@ class LMADataExplorer:
             should_i_timefloat = True
             agg = 'Seconds since start'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif color_by == 'Charge (User Assigned)':
             agg = 'Charge (User Assigned)'
             cmap = ['blue', 'green', 'red']
+            clim = (-1, 1)
         elif color_by == 'Charge (chargepol)':
             pass
         elif color_by == 'Power (dBW)':
             agg = 'Power'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif color_by == 'Altitude':
             agg = 'Altitude'
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
         elif 'Event Density' in color_by:
             agg = None
             cmap = 'rainbow'
+            clim = (np.nan, np.nan)
             timebinwidth = 1e9
             tmin = (np.min(self.ds.event_time.data.astype(float)) // timebinwidth )*timebinwidth
             tmax = (np.max(self.ds.event_time.data.astype(float)) // timebinwidth + 1)*timebinwidth
@@ -522,13 +539,13 @@ class LMADataExplorer:
             else:
                 this_cnorm = 'linear'
             img = hv.Image((timebins_ctr_dt, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Time', 'Altitude'], vdims=['Event Density']
-                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
+                                ).opts(hv.opts.Image(cmap=cmap, cnorm=this_cnorm, clim=clim)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
         if agg is None:
             points = hv.Points(([self.ds.event_time.data[0]], [0], [0]), kdims=['Time', 'Altitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'alttime')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
-            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
+            points = points.opts(hv.opts.Points(color=agg, cmap=cmap, clim=clim, size=5)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], line_color='black', hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
             img = hv.Image((np.array([self.ds.event_time.data[0], self.ds.event_time.data[-1]]), np.array([0, 1]), np.array([[0,0],[0,0]])), kdims=kdims, vdims=[agg]).opts(visible=False)
         return points * img
     
