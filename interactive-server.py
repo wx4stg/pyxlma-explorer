@@ -23,10 +23,10 @@ event_filter_history = pn.Row(pn.Column(width=width_of_major//2), pn.Column(widt
 
 ## Right controls
 limit_button = pn.widgets.Button(name='Limit to Selection', button_type='primary', width=width_of_major//5)
-mark_plus_button = pn.widgets.Button(name='Mark positive', button_type='danger', width=width_of_major//5)
-mark_minus_button = pn.widgets.Button(name='Mark negative', button_type='primary', width=width_of_major//5)
-mark_unassigned_button = pn.widgets.Button(name='Mark unassigned', button_type='success', width=width_of_major//5)
-charge_buttons_row = pn.Row(mark_plus_button, mark_minus_button, mark_unassigned_button, width=width_of_major)
+mark_minus_button = pn.widgets.Button(icon='minus', button_type='primary', width=width_of_major//5)
+mark_unassigned_button = pn.widgets.Button(icon='circle-off', button_type='success', width=width_of_major//5)
+mark_plus_button = pn.widgets.Button(icon='plus', button_type='danger', width=width_of_major//5)
+charge_buttons_row = pn.Row(mark_minus_button, mark_unassigned_button, mark_plus_button, width=width_of_major)
 dataset_html = pn.pane.HTML('<h4>TEST:</h4>')
 
 ## init lma explorer object
@@ -43,7 +43,7 @@ pn.bind(lmae.mark_polygon, mark=0, unused=mark_unassigned_button, watch=True)
 
 ## Assemble layout
 left_controls = pn.Column(datashader_switch_row, color_by_selector, pn.pane.HTML('<h4>Filters:</h4>'), event_filter_controls, event_filter_history, width=width_of_major, height=900)
-right_controls = pn.Column(limit_button, charge_buttons_row, dataset_html, width=width_of_major)
+right_controls = pn.Column(limit_button, pn.pane.HTML('<h4>Charge Assignment:</h4>'), charge_buttons_row, pn.pane.HTML('<h4>Dataset Live View:</h4>'), dataset_html, width=width_of_major)
 the_layout = pn.Row(left_controls, lmae.panelHandle, right_controls)
 
 ## Start server
