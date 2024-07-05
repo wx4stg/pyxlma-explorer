@@ -1,6 +1,7 @@
 import numpy as np
 from bokeh.models import Range1d, WheelZoomTool
 import matplotlib as mpl
+from os import path
 
 from pyxlma.lmalib.io import read as lma_read
 from pyxlma.plot.xlma_plot_feature import color_by_time
@@ -25,8 +26,8 @@ from functools import partial, reduce
 
 
 class LMADataExplorer:
-    def __init__(self, filename, color_by_dropdown=None, datashade_switch=None, datashade_label=None):
-        self.filename = filename
+    def __init__(self, filenames, color_by_dropdown=None, datashade_switch=None, datashade_label=None):
+        self.filenames = filenames
         self.px_scale = 7
 
         self.plan_edge_length = 60
@@ -41,9 +42,11 @@ class LMADataExplorer:
         self.alt_max = 100000
         self.alt_limit = Range1d(0, 20000, bounds=(self.alt_min, self.alt_max))
 
-        ds, start_time = lma_read.dataset(filename)
+        ds, start_time = lma_read.dataset(filenames)
         self.orig_dataset = ds
         self.ds = ds
+        if type(filenames) != str:
+            filename = filenames[0]
         end_time = start_time + timedelta(seconds=int(filename.split('_')[-1].replace('.dat.gz', '')))
         self.time_range_py_dt = [start_time, end_time]
         self.time_range_dt = np.array(self.time_range_py_dt).astype('datetime64')
@@ -53,8 +56,8 @@ class LMADataExplorer:
         self.datashade_label = datashade_label
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
         self.filter_history = np.ones_like(self.ds.number_of_events.data).reshape(1, -1)
-        self.init_plot(color_by_dropdown, datashade_switch)
         self.bad_selection_flag = False
+        self.init_plot(color_by_dropdown, datashade_switch)
 
     def limit_to_polygon(self, _):
         select_path_array = self.selection_geom[0]
@@ -702,17 +705,22 @@ class LMADataExplorer:
         the_lower_part = pn.pane.HoloViews(the_lower_part)
 
         netw_name = 'LYLOUT'
-        filename = self.filename
-        if type(self.filename) != str:
-            filename = filename[0]
-        splitfile = filename.split('_')
-        if len(splitfile) >= 2:
-            netw_name = splitfile[0]
-        if netw_name == 'LYLOUT':
-            if 'station_network' in self.ds.keys():
-                netw_name = [s for s in self.ds.station_network.data[0].decode('utf-8') if s.isalpha()]
-                netw_name = ''.join(netw_name)
-        netw_name.replace('LMA', '')
+        if 'station_network' in self.ds.keys():
+            netw_name = [s for s in self.ds.station_network.data[0].decode('utf-8') if s.isalpha()]
+            netw_name = ''.join(netw_name)
+        else:
+            filename = self.filenames
+            if type(self.filenames) != str:
+                filename = filename[0]
+            filename = path.basename(filename)
+            splitfile = filename.split('_')
+            if len(splitfile) >= 2:
+                netw_name = splitfile[0]
+        for i in range(1, len(netw_name)):
+            if netw_name[i-1].islower() and netw_name[i].isupper():
+                netw_name = netw_name[:i] + ' ' + netw_name[i:]
+
+        netw_name = netw_name.replace('LMA', '').replace('_', ' ').replace('  ', ' ')
 
 
         title = pn.pane.Markdown(f'## {netw_name} LMA on {self.time_range_py_dt[0].strftime("%d %b %Y")}', styles={'text-align': 'center'})

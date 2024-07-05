@@ -1,8 +1,8 @@
 from lma_data_explorer import LMADataExplorer
 import panel as pn
+from os import path, listdir
 
-## init lma explorer object
-filename = 'LYLOUT_230615_200000_0600.dat.gz'
+filenames = [path.join('data', f) for f in listdir('data')]
 
 ## left controls
 
@@ -16,7 +16,8 @@ color_by_selector = pn.widgets.Select(name='Color By', options=['Time', 'Charge 
 ## Right controls
 limit_button = pn.widgets.Button(name='Limit to Selection', button_type='primary')
 
-lmae = LMADataExplorer(filename, color_by_selector, datashader_switch, datashader_label)
+## init lma explorer object
+lmae = LMADataExplorer(filenames, color_by_selector, datashader_switch, datashader_label)
 
 
 # Bind widgets to callbacks
