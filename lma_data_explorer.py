@@ -465,7 +465,7 @@ class LMADataExplorer:
             img = hv.Image((timebins_ctr_dt, altbins[:-1]+altbinwidth/2, hist.T), kdims=['Time', 'Altitude'], vdims=['Event Density']
                                 ).opts(hv.opts.Image(cmap='rainbow', cnorm=this_cnorm)).opts(xlim=(self.ds.event_time.data[0], self.ds.event_time.data[-1]), ylim=self.zlim, width=self.px_scale*(self.plan_edge_length+self.hist_edge_length), height=self.px_scale*self.hist_edge_length, tools=['hover'], hooks=[self.hook_yalt_limiter, self.hook_time_limiter], visible=not should_datashade)
         if agg is None:
-            points = hv.Points(([0], [0], [0]), kdims=['Time', 'Altitude'], vdims=['Event Density']).opts(visible=False)
+            points = hv.Points(([self.ds.event_time.data[0]], [0], [0]), kdims=['Time', 'Altitude'], vdims=['Event Density']).opts(visible=False)
         else:
             data, kdims, vdims = self.things_to_plot(should_i_timefloat, 'alttime')
             points = hv.Points(data, kdims=kdims, vdims=vdims)
@@ -656,7 +656,8 @@ class LMADataExplorer:
         plan_ax_select_area = hv.DynamicMap(self.plan_ax_highlighter)
         self.plan_range_stream = hv.streams.RangeXY(source=plan_points)
         self.plan_range_stream.add_subscriber(self.plan_range_handle)
-        plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_points).rename(x='plan_x', y='plan_y')
+        plan_pointer_src = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Latitude'], vdims=['Point Source']).opts(visible=False)
+        plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_pointer_src).rename(x='plan_x', y='plan_y')
 
         lon_alt_points = hv.DynamicMap(pn.bind(self.plot_lonalt_points, color_by=color_by_dropdown, should_datashade=datashade_switch, filter_history=self.filter_history, watch=True))
         lon_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
@@ -665,7 +666,8 @@ class LMADataExplorer:
         lon_alt_select_area = hv.DynamicMap(self.lon_ax_highlighter)
         self.lon_alt_range_stream = hv.streams.RangeXY(source=lon_alt_points)
         self.lon_alt_range_stream.add_subscriber(self.lonalt_range_handle)
-        lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_alt_points).rename(x='lon_x', y='lon_y')
+        lon_pointer_src = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Altitude'], vdims=['Point Source']).opts(visible=False)
+        lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_pointer_src).rename(x='lon_x', y='lon_y')
 
 
         hist_ax = hv.DynamicMap(self.plot_alt_hist)
@@ -677,7 +679,8 @@ class LMADataExplorer:
         lat_alt_select_area = hv.DynamicMap(self.lat_ax_highlighter)
         self.lat_alt_range_stream = hv.streams.RangeXY(source=lat_alt_points)
         self.lat_alt_range_stream.add_subscriber(self.latalt_range_handle)
-        lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_alt_points).rename(x='lat_x', y='lat_y')
+        lat_pointer_src = hv.Points(([0], [0], [0]), kdims=['Altitude', 'Latitude'], vdims=['Point Source']).opts(visible=False)
+        lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_pointer_src).rename(x='lat_x', y='lat_y')
 
 
         alt_time_points = hv.DynamicMap(pn.bind(self.plot_alttime_points, color_by=color_by_dropdown, should_datashade=datashade_switch, filter_history=self.filter_history, watch=True))
@@ -685,7 +688,8 @@ class LMADataExplorer:
         alt_time_ax_selector = hv.streams.PolyDraw(source=alt_time_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
         alt_time_ax_selector.add_subscriber(self.handle_selection)
         alt_time_select_area = hv.DynamicMap(self.time_ax_highlighter)
-        alt_time_pointer = hv.streams.PointerXY(x=0, y=0, source=alt_time_points).rename(x='time_x', y='time_y')
+        alt_time_pointer_src = hv.Points(([self.ds.event_time.data[0]], [0], [0]), kdims=['Time', 'Altitude'], vdims=['Point Source']).opts(visible=False)
+        alt_time_pointer = hv.streams.PointerXY(x=0, y=0, source=alt_time_pointer_src).rename(x='time_x', y='time_y')
 
         points_shaded = []
         for ax in ['plan', 'lonalt', 'latalt', 'alttime']:
@@ -754,10 +758,10 @@ class LMADataExplorer:
         counties_shp = [shape(counties_shp[i]) for i in range(len(counties_shp))]
         self.plan_ax_bg = gv.Path(counties_shp).opts(color='gray') * gf.borders().opts(color='black') * gf.states().opts(color='black', line_width=2)
 
-        lon_alt_ax = (lon_alt_points * points_shaded[1] * lon_ax_crosshair * lon_alt_ax_polys * lon_alt_select_area)
-        plan_ax = (plan_points * points_shaded[0] * plan_ax_crosshair * plan_ax_polys * plan_ax_select_area * self.plan_ax_bg)
-        lat_alt_ax = (lat_alt_points * points_shaded[2] * lat_ax_crosshair * lat_alt_ax_polys * lat_alt_select_area)
-        alt_time_ax = pn.pane.HoloViews(alt_time_points * points_shaded[3] * time_ax_crosshair * alt_time_ax_polys * alt_time_select_area)
+        lon_alt_ax = (lon_pointer_src * lon_alt_points * points_shaded[1] * lon_ax_crosshair * lon_alt_ax_polys * lon_alt_select_area)
+        plan_ax = (plan_pointer_src * plan_points * points_shaded[0] * plan_ax_crosshair * plan_ax_polys * plan_ax_select_area * self.plan_ax_bg)
+        lat_alt_ax = (lat_pointer_src * lat_alt_points * points_shaded[2] * lat_ax_crosshair * lat_alt_ax_polys * lat_alt_select_area)
+        alt_time_ax = pn.pane.HoloViews(alt_time_pointer_src * alt_time_points * points_shaded[3] * time_ax_crosshair * alt_time_ax_polys * alt_time_select_area)
 
         the_lower_part = (lon_alt_ax + hist_ax + plan_ax + lat_alt_ax).cols(2)
         the_lower_part = pn.pane.HoloViews(the_lower_part)
