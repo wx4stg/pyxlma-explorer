@@ -23,6 +23,9 @@ event_filter_history = pn.Row(pn.Column(width=width_of_major//2), pn.Column(widt
 
 ## Right controls
 limit_button = pn.widgets.Button(name='Limit to Selection', button_type='primary')
+mark_plus_button = pn.widgets.Button(name='Mark positive', icon='plus', width=width_of_major//10)
+mark_minus_button = pn.widgets.Button(name='Mark negative', icon='minus', width=width_of_major//10)
+mark_unassigned_button = pn.widgets.Button(name='Mark unassigned', icon='circle-off', width=width_of_major//10)
 
 ## init lma explorer object
 lmae = LMADataExplorer(filenames, 7, color_by_selector, datashader_switch, datashader_label, event_filter_controls, event_filter_history)
