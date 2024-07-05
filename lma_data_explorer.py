@@ -27,7 +27,8 @@ from functools import partial, reduce
 
 
 class LMADataExplorer:
-    def __init__(self, filenames, px_scale=7, color_by_dropdown=None, datashade_switch=None, datashade_label=None, event_filter_controls=None, event_filter_table=None):
+    def __init__(self, filenames, px_scale=7, color_by_dropdown=None, datashade_switch=None,
+                 datashade_label=None, event_filter_controls=None, event_filter_table=None, html_pane=None):
         self.filenames = filenames
         self.px_scale = px_scale
 
@@ -77,7 +78,8 @@ class LMADataExplorer:
             self.event_filter_type_selector.value = 'event_chi2'
             self.event_filter_value_input.value = 1.0
         self.event_filter_table = event_filter_table
-
+        self.html_pane = html_pane
+        self.html_pane.object = self.ds
         self.init_plot(color_by_dropdown, datashade_switch)
 
     def limit_to_polygon(self, _):
@@ -112,6 +114,7 @@ class LMADataExplorer:
             print('no events in selection')
             return
         self.ds = new_ds
+        self.html_pane.object = self.ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
         poly_num = 0
@@ -186,6 +189,7 @@ class LMADataExplorer:
             print('no events in selection')
             return
         self.ds = new_ds
+        self.html_pane.object = self.ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
         self.filter_history_pretty.append(pretty_string)
@@ -205,6 +209,7 @@ class LMADataExplorer:
         values_to_plot = np.prod(new_filter_history, axis=0)
         new_ds = self.orig_dataset.isel(number_of_events=values_to_plot.astype(bool))
         self.ds = new_ds
+        self.html_pane.object = self.ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
 
