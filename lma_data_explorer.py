@@ -13,9 +13,11 @@ from datetime import datetime as dt, timedelta
 
 
 import holoviews as hv
+hv.extension('bokeh')
 import holoviews.operation.datashader
 import datashader
 import panel as pn
+import param as pm
 
 
 import geoviews as gv
@@ -28,58 +30,220 @@ from functools import partial, reduce
 
 
 
-class LMADataExplorer:
-    def __init__(self, filenames, px_scale=7, color_by_dropdown=None, datashade_switch=None,
-                 datashade_label=None, event_filter_controls=None, event_filter_table=None, html_pane=None,
-                 flash_id_selector=None, flash_filter_controls=None, flash_filter_table=None):
-        self.filenames = filenames
-        self.px_scale = px_scale
+class LMADataExplorer(pm.Parameterized):
+    filenames = pm.MultiFileSelector()
+    datashade_label = pm.String('Enable Datashader?')
+    datashade_switch = pm.Boolean(True)
+    color_by_dropdown = pm.Selector(objects=['Time', 'Charge (User Assigned)', 'Charge (chargepol)', 'Power (dBW)', 'Event Density', 'Log Event Density', 'Altitude'], default='Time')
+    event_filter_type_selector = pm.Selector(objects=[], default=None)
+    event_filter_op_selector = pm.Selector(objects=['==', '>', '<', '>=', '<=', '!='], default='<=')
+    event_filter_value_input = pm.Number(0.0)
+    event_filter_add = pm.Action(lambda self: self.limit_to_filter())
 
-        self.plan_edge_length = 60
-        self.hist_edge_length = 20
+    limit_button = pm.Action(lambda self: self.limit_to_polygon())
+    mark_minus_button = pm.Action(lambda self: self.mark_polygon(-1))
+    mark_unassigned_button = pm.Action(lambda self: self.mark_polygon(0))
+    mark_plus_button = pm.Action(lambda self: self.mark_polygon(1))
 
-        # plan view x, y; lonalt x, y; latalt x, y; time x, y; position; counter
-        self.last_mouse_coord = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        self.selection_geom = [np.array([]), 0]
+    cluster_button = pm.Action(lambda self: self.cluster_flashes())
+    flash_id_selector = pm.Integer(0)
+    flash_id_button = pm.Action(lambda self: self.view_flash_id())
+    prev_flash_step = pm.Action(lambda self: self.view_flash_id(-1))
+    next_flash_step = pm.Action(lambda self: self.view_flash_id(1))
+
+    flash_filter_type_selector = pm.Selector(objects=[], default=None)
+    flash_filter_op_selector = pm.Selector(objects=['==', '>', '<', '>=', '<=', '!='], default='>=')
+    flash_filter_value_input = pm.Number(0.0)
+    # flash_filter_add = pm.Action(lambda self: self.limit_to_flash_filter())
 
 
-        self.alt_min = 0
-        self.alt_max = 100000
-        self.alt_limit = Range1d(0, 20000, bounds=(self.alt_min, self.alt_max))
+    
 
-        ds, start_time = lma_read.dataset(filenames)
+    px_scale = pm.Integer(7, readonly=True) # could just be a property
+    hist_edge_length = pm.Integer(20, readonly=True) # could just be a property
+    plan_edge_length = pm.Integer(60, readonly=True)
+    # plan view x, y; lonalt x, y; latalt x, y; time x, y; position; counter
+    last_mouse_coord = pm.List([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
+    selection_geom = pm.List([np.array([]), 0])
+    alt_min = pm.Integer(0, readonly=True)
+    alt_max = pm.Integer(100000, readonly=True)
+    init_alt_range = pm.Parameter(Range1d(0, 20000, bounds=(0, 100000))) # could just be a property
+    
+
+    ds = pm.Parameter() # could just be a property
+    orig_dataset = pm.Parameter() # could just be a property
+    time_range_dt = pm.Array() # could just be a property
+    time_range = pm.Array() # could just be a property
+    filter_history = pm.Array()
+    filter_history_pretty = pm.List() # could just be a property
+    bad_selection_flag = pm.Boolean(False) # could just be a property
+    event_filter_table = pm.Parameter(pn.Row(pn.Column(), pn.Column())) # could just be a property
+    flash_filter_table = pm.Parameter(pn.Row(pn.Column(), pn.Column())) # could just be a property
+    dataset_html = pm.Parameter(pn.pane.HTML()) # could just be a property
+
+
+    def __call__(self, **kwargs):
+        ds, start_time = lma_read.dataset(self.filenames)
         if 'event_assigned_charge' not in ds.data_vars:
             ds = ds.set_coords('number_of_stations')
             ds['event_assigned_charge'] = xr.zeros_like(ds['number_of_events'], dtype=np.int8)
             ds = ds.reset_coords('number_of_stations')
-        self.orig_dataset = ds
         self.ds = ds
-        if type(filenames) != str:
-            filename = filenames[0]
-        end_time = start_time + timedelta(seconds=int(filename.split('_')[-1].replace('.dat.gz', '')))
-        self.time_range_py_dt = [start_time, end_time]
-        self.time_range_dt = np.array(self.time_range_py_dt).astype('datetime64')
+        self.orig_dataset = ds
+        end_time = start_time + timedelta(seconds=int(self.filenames[0].split('_')[-1].replace('.dat.gz', '')))
+        time_range_py_dt = (start_time, end_time)
+        self.time_range_dt = np.array(time_range_py_dt).astype('datetime64')
         self.time_range = self.time_range_dt.astype(float)/1e3
-        self.lon_range = Range1d(self.ds.network_center_longitude.data - 1, self.ds.network_center_longitude.data + 1)
-        self.lat_range = Range1d(self.ds.network_center_latitude.data - 1, self.ds.network_center_latitude.data + 1)
-        self.datashade_label = datashade_label
-        self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
+        self.dataset_html.object = self.ds
+
+        self.datashade_label = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
         self.filter_history = np.ones_like(self.ds.number_of_events.data).reshape(1, -1)
-        self.filter_history_pretty = []
-        self.bad_selection_flag = False
-        self.event_filter_controls = event_filter_controls
-        self.event_filter_type_selector = event_filter_controls[0]
-        self.event_filter_op_selector = event_filter_controls[1]
-        self.event_filter_value_input = event_filter_controls[2]
-        self.event_filter_table = event_filter_table
-        self.html_pane = html_pane
-        self.html_pane.object = self.ds
-        self.flash_id_selector = flash_id_selector
-        self.flash_filter_type_selector = flash_filter_controls[0]
-        self.flash_filter_op_selector = flash_filter_controls[1]
-        self.flash_filter_value_selector = flash_filter_controls[2]
+
         self.update_type_selectors()
-        self.init_plot(color_by_dropdown, datashade_switch)
+
+        self.xlim = (self.ds.network_center_longitude.data - 3, self.ds.network_center_longitude.data + 3)
+        self.ylim = (self.ds.network_center_latitude.data - 3, self.ds.network_center_latitude.data + 3)
+        self.zlim = (0, 20000)
+
+        plan_points = hv.DynamicMap(pn.bind(self.plot_planview_points, color_by=self.color_by_dropdown, should_datashade=self.datashade_switch, filter_history=self.filter_history, watch=True))
+        plan_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+        plan_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
+        plan_ax_selector.add_subscriber(self.handle_selection)
+        plan_ax_select_area = hv.DynamicMap(self.plan_ax_highlighter)
+        self.plan_range_stream = hv.streams.RangeXY(source=plan_points)
+        self.plan_range_stream.add_subscriber(self.plan_range_handle)
+        plan_pointer_src = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Latitude'], vdims=['Point Source']).opts(visible=False)
+        plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_pointer_src).rename(x='plan_x', y='plan_y')
+
+        lon_alt_points = hv.DynamicMap(pn.bind(self.plot_lonalt_points, color_by=self.color_by_dropdown, should_datashade=self.datashade_switch, filter_history=self.filter_history, watch=True))
+        lon_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+        lon_alt_ax_selector = hv.streams.PolyDraw(source=lon_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
+        lon_alt_ax_selector.add_subscriber(self.handle_selection)
+        lon_alt_select_area = hv.DynamicMap(self.lon_ax_highlighter)
+        self.lon_alt_range_stream = hv.streams.RangeXY(source=lon_alt_points)
+        self.lon_alt_range_stream.add_subscriber(self.lonalt_range_handle)
+        lon_pointer_src = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Altitude'], vdims=['Point Source']).opts(visible=False)
+        lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_pointer_src).rename(x='lon_x', y='lon_y')
+
+
+        hist_ax = hv.DynamicMap(self.plot_alt_hist)
+
+        lat_alt_points = hv.DynamicMap(pn.bind(self.plot_latalt_points, color_by=self.color_by_dropdown, should_datashade=self.datashade_switch, filter_history=self.filter_history, watch=True))
+        lat_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+        lat_alt_ax_selector = hv.streams.PolyDraw(source=lat_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
+        lat_alt_ax_selector.add_subscriber(self.handle_selection)
+        lat_alt_select_area = hv.DynamicMap(self.lat_ax_highlighter)
+        self.lat_alt_range_stream = hv.streams.RangeXY(source=lat_alt_points)
+        self.lat_alt_range_stream.add_subscriber(self.latalt_range_handle)
+        lat_pointer_src = hv.Points(([0], [0], [0]), kdims=['Altitude', 'Latitude'], vdims=['Point Source']).opts(visible=False)
+        lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_pointer_src).rename(x='lat_x', y='lat_y')
+
+
+        alt_time_points = hv.DynamicMap(pn.bind(self.plot_alttime_points, color_by=self.color_by_dropdown, should_datashade=self.datashade_switch, filter_history=self.filter_history, watch=True))
+        alt_time_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
+        alt_time_ax_selector = hv.streams.PolyDraw(source=alt_time_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
+        alt_time_ax_selector.add_subscriber(self.handle_selection)
+        alt_time_select_area = hv.DynamicMap(self.time_ax_highlighter)
+        alt_time_pointer_src = hv.Points(([self.ds.event_time.data[0]], [0], [0]), kdims=['Time', 'Altitude'], vdims=['Point Source']).opts(visible=False)
+        alt_time_pointer = hv.streams.PointerXY(x=0, y=0, source=alt_time_pointer_src).rename(x='time_x', y='time_y')
+
+        points_shaded = []
+        for ax in ['plan', 'lonalt', 'latalt', 'alttime']:
+            this_ax_points_shaded = []
+            for colorshade in self.param.color_by_dropdown.objects:
+                if colorshade in ['Charge (User Assigned)', 'Charge (chargepol)']:
+                    continue
+                points = self.plot_points_datashaded(ax, colorshade)
+                if colorshade != self.color_by_dropdown:
+                    points.opts(visible=False)
+                should_this_display = pn.bind(self.should_show_datashaded_points, color_by_match=colorshade, color_by=self.color_by_dropdown, should_datashade=self.datashade_switch, watch=True)
+                pn.bind(points.opts, visible=should_this_display, watch=True)
+                this_ax_points_shaded.append(points)
+            this_ax_points_shaded = reduce(lambda x, y: x*y, this_ax_points_shaded)
+            points_shaded.append(this_ax_points_shaded)
+
+        plan_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
+                                    lon_x, lon_y, time_x, time_y: 
+                                    self.pointer_plotter(plan_x, plan_y, lat_x, lat_y,
+                                    lon_x, lon_y, time_x, time_y, 'plan'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
+
+        lon_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
+                                    lon_x, lon_y, time_x, time_y: 
+                                    self.pointer_plotter(plan_x, plan_y, lat_x, lat_y,
+                                    lon_x, lon_y, time_x, time_y, 'lon'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
+
+
+        lat_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
+                                    lon_x, lon_y, time_x, time_y: 
+                                    self.pointer_plotter(plan_x, plan_y, lat_x, lat_y,
+                                    lon_x, lon_y, time_x, time_y, 'lat'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
+
+        time_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
+                                    lon_x, lon_y, time_x, time_y: 
+                                    self.pointer_plotter(plan_x, plan_y, lat_x, lat_y,
+                                    lon_x, lon_y, time_x, time_y, 'time'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
+        
+        self.plan_ax_pointer = plan_ax_pointer
+        self.lon_alt_ax_pointer = lon_alt_ax_pointer
+        self.lat_alt_ax_pointer = lat_alt_ax_pointer
+        self.alt_time_pointer = alt_time_pointer
+
+        self.plan_points = plan_points
+        self.lon_alt_points = lon_alt_points
+        self.lat_alt_points = lat_alt_points
+        self.alt_time_points = alt_time_points
+        
+        self.plan_ax_crosshair = plan_ax_crosshair
+        self.lon_ax_crosshair = lon_ax_crosshair
+        self.lat_ax_crosshair = lat_ax_crosshair
+        self.time_ax_crosshair = time_ax_crosshair
+
+        self.plan_ax_select_area = plan_ax_select_area
+        self.lon_alt_select_area = lon_alt_select_area
+        self.lat_alt_select_area = lat_alt_select_area
+        self.alt_time_select_area = alt_time_select_area
+
+        self.plan_ax_selector = plan_ax_selector
+        self.lon_alt_ax_selector = lon_alt_ax_selector
+        self.lat_alt_ax_selector = lat_alt_ax_selector
+        self.alt_time_ax_selector = alt_time_ax_selector
+
+        self.hist_ax = hist_ax
+
+        counties_shp = shapefile.Reader('ne_10m_admin_2_counties.shp').shapes()
+        counties_shp = [shape(counties_shp[i]) for i in range(len(counties_shp))]
+        self.plan_ax_bg = gv.Path(counties_shp).opts(color='gray') * gf.borders().opts(color='black') * gf.states().opts(color='black', line_width=2)
+
+        lon_alt_ax = (lon_pointer_src * lon_alt_points * points_shaded[1] * lon_ax_crosshair * lon_alt_ax_polys * lon_alt_select_area)
+        plan_ax = (plan_pointer_src * plan_points * points_shaded[0] * plan_ax_crosshair * plan_ax_polys * plan_ax_select_area * self.plan_ax_bg)
+        lat_alt_ax = (lat_pointer_src * lat_alt_points * points_shaded[2] * lat_ax_crosshair * lat_alt_ax_polys * lat_alt_select_area)
+        alt_time_ax = pn.pane.HoloViews(alt_time_pointer_src * alt_time_points * points_shaded[3] * time_ax_crosshair * alt_time_ax_polys * alt_time_select_area)
+
+        the_lower_part = (lon_alt_ax + hist_ax + plan_ax + lat_alt_ax).cols(2)
+        the_lower_part = pn.pane.HoloViews(the_lower_part)
+
+        netw_name = 'LYLOUT'
+        if 'station_network' in self.ds.keys():
+            netw_name = [s for s in self.ds.station_network.data[0].decode('utf-8') if s.isalpha()]
+            netw_name = ''.join(netw_name)
+        else:
+            filename = self.filenames
+            if type(self.filenames) != str:
+                filename = filename[0]
+            filename = path.basename(filename)
+            splitfile = filename.split('_')
+            if len(splitfile) >= 2:
+                netw_name = splitfile[0]
+        for i in range(1, len(netw_name)):
+            if netw_name[i-1].islower() and netw_name[i].isupper():
+                netw_name = netw_name[:i] + ' ' + netw_name[i:]
+
+        netw_name = netw_name.replace('LMA', '').replace('_', ' ').replace('  ', ' ')
+
+
+        title = pn.pane.HTML(f'<h2>{netw_name} LMA on {start_time.strftime("%d %b %Y")}</h2>')#, styles={'text-align': 'center'})
+
+        self.panelHandle  = pn.Column(title, alt_time_ax, the_lower_part)
 
 
     def update_type_selectors(self):
@@ -88,20 +252,20 @@ class LMADataExplorer:
             if 'number_of_events' in self.ds[var].dims and len(self.ds[var].dims) == 1:
                 pretty_text = var.replace('_', ' ').title().replace('Chi2', 'χ²').replace('Id', 'ID')
                 options[pretty_text] = var
-        self.event_filter_type_selector.options = options
-        if 'event_chi2' in self.event_filter_type_selector.options.values():
-            self.event_filter_type_selector.value = 'event_chi2'
-            self.event_filter_value_input.value = 1.0
+        self.param.event_filter_type_selector.objects = options
+        if 'event_chi2' in self.param.event_filter_type_selector.objects:
+            self.event_filter_type_selector = 'event_chi2'
+            self.event_filter_value_input = 1.0
         options = {}
         if 'number_of_flashes' in self.ds.dims:
             for var in self.ds.data_vars:
                 if 'number_of_flashes' in self.ds[var].dims and len(self.ds[var].dims) == 1:
                     pretty_text = var.replace('_', ' ').title().replace('Chi2', 'χ²').replace('Id', 'ID')
                     options[pretty_text] = var
-            self.flash_filter_type_selector.options = options
-            if 'flash_event_count' in self.flash_filter_type_selector.options.values():
-                self.flash_filter_type_selector.value = 'flash_event_count'
-                self.flash_filter_value_selector.value = 75
+            self.param.flash_filter_type_selector.objects = options
+            if 'flash_event_count' in self.param.flash_filter_type_selector.objects:
+                self.flash_filter_type_selector = 'flash_event_count'
+                self.flash_filter_value_input = 75
 
 
     def limit_to_polygon(self, _):
@@ -136,7 +300,7 @@ class LMADataExplorer:
             print('no events in selection')
             return
         self.ds = new_ds
-        self.html_pane.object = self.ds
+        self.dataset_html.object = self.ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
         poly_num = 0
@@ -211,7 +375,7 @@ class LMADataExplorer:
             print('no events in selection')
             return
         self.ds = new_ds
-        self.html_pane.object = self.ds
+        self.dataset_html.object = self.ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
         self.filter_history_pretty.append(pretty_string)
@@ -231,7 +395,7 @@ class LMADataExplorer:
         values_to_plot = np.prod(new_filter_history, axis=0)
         new_ds = self.orig_dataset.isel(number_of_events=values_to_plot.astype(bool))
         self.ds = new_ds
-        self.html_pane.object = self.ds
+        self.dataset_html.object = self.ds
         self.filter_history = new_filter_history
         self.datashade_label.value = f'Enable Datashader? ({self.ds.number_of_events.data.shape[0]} src)'
 
@@ -242,18 +406,19 @@ class LMADataExplorer:
         self.orig_dataset = flash_stats(cluster_flashes(self.orig_dataset))
         self.orig_dataset = self.orig_dataset.reset_coords('number_of_stations')
         self.ds = self.orig_dataset.isel(number_of_events=np.prod(self.filter_history, axis=0).astype(bool))
-        self.html_pane.object = self.ds
+        self.dataset_html.object = self.ds
         self.flash_id_selector.start = int(np.min(self.ds.flash_id.data))
         self.flash_id_selector.value = int(np.min(self.ds.flash_id.data))
         self.flash_id_selector.end = int(np.max(self.ds.flash_id.data))
         self.update_type_selectors()
 
 
-    def view_flash_id(self, _):
+    def view_flash_id(self, step=0):
         for filt in self.filter_history_pretty:
             if 'Event Parent Flash ID' in filt:
                 self.remove_filter(filt, None)
-        flash_id = self.flash_id_selector.value
+        flash_id = self.flash_id_selector.value + step
+        self.flash_id_selector.value = flash_id
         orig_filter_var = self.event_filter_type_selector.value
         orig_filter_op_str = self.event_filter_op_selector.value
         orig_filter_val = self.event_filter_value_input.value
@@ -271,13 +436,16 @@ class LMADataExplorer:
         init_xmax = plot.state.x_range.end
         plot.state.x_range = Range1d(0, init_xmax, bounds=(0, init_xmax))
 
+
     def hook_yalt_limiter(self, plot, element):
         plot.state.select_one(WheelZoomTool).maintain_focus = False
         plot.state.y_range = self.init_alt_range
 
+
     def hook_xalt_limiter(self, plot, element):
         plot.state.select_one(WheelZoomTool).maintain_focus = False
         plot.state.x_range = self.init_alt_range
+
 
     def hook_time_limiter(self, plot, element):
         if type(plot.state.x_range.start) == float:
@@ -285,6 +453,7 @@ class LMADataExplorer:
                 plot.state.x_range.start = self.time_range[0]
             if plot.state.x_range.end > self.time_range[1]:
                 plot.state.x_range.end = self.time_range[1]
+
 
     def hook_xlabel_rotate(self, plot, element):
         plot.state.xaxis.major_label_orientation = -np.pi/2
@@ -772,155 +941,3 @@ class LMADataExplorer:
                 x2 = np.max(self.selection_geom[0][:, 0])
                 return (hv.Area(([self.time_range_dt[0], self.time_range_dt[1]], [x1, x1], [x2, x2]), vdims=['v1', 'v2']).opts(color='black', alpha=0.3) *
                         hv.HLines([x1, x2]).opts(color='black', line_dash='dashed'))
-
-
-    def init_plot(self, color_by_dropdown=None, datashade_switch=None):
-        self.xlim = (self.ds.network_center_longitude.data - 3, self.ds.network_center_longitude.data + 3)
-        self.ylim = (self.ds.network_center_latitude.data - 3, self.ds.network_center_latitude.data + 3)
-        self.zlim = (0, 20000)
-
-        self.init_lon_range = Range1d(self.xlim[0], self.xlim[1])
-        self.init_lat_range = Range1d(self.ylim[0], self.ylim[1])
-        self.init_alt_range = Range1d(self.zlim[0], self.zlim[1], bounds=(0, 100000))
-
-        plan_points = hv.DynamicMap(pn.bind(self.plot_planview_points, color_by=color_by_dropdown, should_datashade=datashade_switch, filter_history=self.filter_history, watch=True))
-        plan_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
-        plan_ax_selector = hv.streams.PolyDraw(source=plan_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
-        plan_ax_selector.add_subscriber(self.handle_selection)
-        plan_ax_select_area = hv.DynamicMap(self.plan_ax_highlighter)
-        self.plan_range_stream = hv.streams.RangeXY(source=plan_points)
-        self.plan_range_stream.add_subscriber(self.plan_range_handle)
-        plan_pointer_src = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Latitude'], vdims=['Point Source']).opts(visible=False)
-        plan_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=plan_pointer_src).rename(x='plan_x', y='plan_y')
-
-        lon_alt_points = hv.DynamicMap(pn.bind(self.plot_lonalt_points, color_by=color_by_dropdown, should_datashade=datashade_switch, filter_history=self.filter_history, watch=True))
-        lon_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
-        lon_alt_ax_selector = hv.streams.PolyDraw(source=lon_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
-        lon_alt_ax_selector.add_subscriber(self.handle_selection)
-        lon_alt_select_area = hv.DynamicMap(self.lon_ax_highlighter)
-        self.lon_alt_range_stream = hv.streams.RangeXY(source=lon_alt_points)
-        self.lon_alt_range_stream.add_subscriber(self.lonalt_range_handle)
-        lon_pointer_src = hv.Points(([0], [0], [0]), kdims=['Longitude', 'Altitude'], vdims=['Point Source']).opts(visible=False)
-        lon_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lon_pointer_src).rename(x='lon_x', y='lon_y')
-
-
-        hist_ax = hv.DynamicMap(self.plot_alt_hist)
-
-        lat_alt_points = hv.DynamicMap(pn.bind(self.plot_latalt_points, color_by=color_by_dropdown, should_datashade=datashade_switch, filter_history=self.filter_history, watch=True))
-        lat_alt_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
-        lat_alt_ax_selector = hv.streams.PolyDraw(source=lat_alt_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
-        lat_alt_ax_selector.add_subscriber(self.handle_selection)
-        lat_alt_select_area = hv.DynamicMap(self.lat_ax_highlighter)
-        self.lat_alt_range_stream = hv.streams.RangeXY(source=lat_alt_points)
-        self.lat_alt_range_stream.add_subscriber(self.latalt_range_handle)
-        lat_pointer_src = hv.Points(([0], [0], [0]), kdims=['Altitude', 'Latitude'], vdims=['Point Source']).opts(visible=False)
-        lat_alt_ax_pointer = hv.streams.PointerXY(x=0, y=0, source=lat_pointer_src).rename(x='lat_x', y='lat_y')
-
-
-        alt_time_points = hv.DynamicMap(pn.bind(self.plot_alttime_points, color_by=color_by_dropdown, should_datashade=datashade_switch, filter_history=self.filter_history, watch=True))
-        alt_time_ax_polys = hv.Polygons([]).opts(hv.opts.Polygons(fill_alpha=0.3, fill_color='black'))
-        alt_time_ax_selector = hv.streams.PolyDraw(source=alt_time_ax_polys, drag=False, num_objects=1, show_vertices=True, vertex_style={'size': 5, 'fill_color': 'white', 'line_color' : 'black'})
-        alt_time_ax_selector.add_subscriber(self.handle_selection)
-        alt_time_select_area = hv.DynamicMap(self.time_ax_highlighter)
-        alt_time_pointer_src = hv.Points(([self.ds.event_time.data[0]], [0], [0]), kdims=['Time', 'Altitude'], vdims=['Point Source']).opts(visible=False)
-        alt_time_pointer = hv.streams.PointerXY(x=0, y=0, source=alt_time_pointer_src).rename(x='time_x', y='time_y')
-
-        points_shaded = []
-        for ax in ['plan', 'lonalt', 'latalt', 'alttime']:
-            this_ax_points_shaded = []
-            for colorshade in color_by_dropdown.options:
-                if colorshade in ['Charge (User Assigned)', 'Charge (chargepol)']:
-                    continue
-                points = self.plot_points_datashaded(ax, colorshade)
-                if colorshade != color_by_dropdown.value:
-                    points.opts(visible=False)
-                should_this_display = pn.bind(self.should_show_datashaded_points, color_by_match=colorshade, color_by=color_by_dropdown, should_datashade=datashade_switch, watch=True)
-                pn.bind(points.opts, visible=should_this_display, watch=True)
-                this_ax_points_shaded.append(points)
-            this_ax_points_shaded = reduce(lambda x, y: x*y, this_ax_points_shaded)
-            points_shaded.append(this_ax_points_shaded)
-
-        plan_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
-                                    lon_x, lon_y, time_x, time_y: 
-                                    self.pointer_plotter(plan_x, plan_y, lat_x, lat_y,
-                                    lon_x, lon_y, time_x, time_y, 'plan'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
-
-        lon_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
-                                    lon_x, lon_y, time_x, time_y: 
-                                    self.pointer_plotter(plan_x, plan_y, lat_x, lat_y,
-                                    lon_x, lon_y, time_x, time_y, 'lon'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
-
-
-        lat_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
-                                    lon_x, lon_y, time_x, time_y: 
-                                    self.pointer_plotter(plan_x, plan_y, lat_x, lat_y,
-                                    lon_x, lon_y, time_x, time_y, 'lat'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
-
-        time_ax_crosshair = hv.DynamicMap(lambda plan_x, plan_y, lat_x, lat_y,
-                                    lon_x, lon_y, time_x, time_y: 
-                                    self.pointer_plotter(plan_x, plan_y, lat_x, lat_y,
-                                    lon_x, lon_y, time_x, time_y, 'time'), streams=[plan_ax_pointer, lat_alt_ax_pointer, lon_alt_ax_pointer, alt_time_pointer])
-        
-        self.plan_ax_pointer = plan_ax_pointer
-        self.lon_alt_ax_pointer = lon_alt_ax_pointer
-        self.lat_alt_ax_pointer = lat_alt_ax_pointer
-        self.alt_time_pointer = alt_time_pointer
-
-        self.plan_points = plan_points
-        self.lon_alt_points = lon_alt_points
-        self.lat_alt_points = lat_alt_points
-        self.alt_time_points = alt_time_points
-        
-        self.plan_ax_crosshair = plan_ax_crosshair
-        self.lon_ax_crosshair = lon_ax_crosshair
-        self.lat_ax_crosshair = lat_ax_crosshair
-        self.time_ax_crosshair = time_ax_crosshair
-
-        self.plan_ax_select_area = plan_ax_select_area
-        self.lon_alt_select_area = lon_alt_select_area
-        self.lat_alt_select_area = lat_alt_select_area
-        self.alt_time_select_area = alt_time_select_area
-
-        self.plan_ax_selector = plan_ax_selector
-        self.lon_alt_ax_selector = lon_alt_ax_selector
-        self.lat_alt_ax_selector = lat_alt_ax_selector
-        self.alt_time_ax_selector = alt_time_ax_selector
-
-        self.hist_ax = hist_ax
-
-        counties_shp = shapefile.Reader('ne_10m_admin_2_counties.shp').shapes()
-        counties_shp = [shape(counties_shp[i]) for i in range(len(counties_shp))]
-        self.plan_ax_bg = gv.Path(counties_shp).opts(color='gray') * gf.borders().opts(color='black') * gf.states().opts(color='black', line_width=2)
-
-        lon_alt_ax = (lon_pointer_src * lon_alt_points * points_shaded[1] * lon_ax_crosshair * lon_alt_ax_polys * lon_alt_select_area)
-        plan_ax = (plan_pointer_src * plan_points * points_shaded[0] * plan_ax_crosshair * plan_ax_polys * plan_ax_select_area * self.plan_ax_bg)
-        lat_alt_ax = (lat_pointer_src * lat_alt_points * points_shaded[2] * lat_ax_crosshair * lat_alt_ax_polys * lat_alt_select_area)
-        alt_time_ax = pn.pane.HoloViews(alt_time_pointer_src * alt_time_points * points_shaded[3] * time_ax_crosshair * alt_time_ax_polys * alt_time_select_area)
-
-        the_lower_part = (lon_alt_ax + hist_ax + plan_ax + lat_alt_ax).cols(2)
-        the_lower_part = pn.pane.HoloViews(the_lower_part)
-
-        netw_name = 'LYLOUT'
-        if 'station_network' in self.ds.keys():
-            netw_name = [s for s in self.ds.station_network.data[0].decode('utf-8') if s.isalpha()]
-            netw_name = ''.join(netw_name)
-        else:
-            filename = self.filenames
-            if type(self.filenames) != str:
-                filename = filename[0]
-            filename = path.basename(filename)
-            splitfile = filename.split('_')
-            if len(splitfile) >= 2:
-                netw_name = splitfile[0]
-        for i in range(1, len(netw_name)):
-            if netw_name[i-1].islower() and netw_name[i].isupper():
-                netw_name = netw_name[:i] + ' ' + netw_name[i:]
-
-        netw_name = netw_name.replace('LMA', '').replace('_', ' ').replace('  ', ' ')
-
-
-        title = pn.pane.HTML(f'<h2>{netw_name} LMA on {self.time_range_py_dt[0].strftime("%d %b %Y")}</h2>')#, styles={'text-align': 'center'})
-
-        self.panelHandle  = pn.Column(title, alt_time_ax, the_lower_part)
-
-
