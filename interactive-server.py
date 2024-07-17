@@ -12,10 +12,10 @@ lmae = LMADataExplorer(filenames=filenames)
 
 ## left controls
 datashader_label = pn.widgets.StaticText.from_param(lmae.param.datashade_label, name='', width=(width_of_major*3)//4)
-datashader_switch = pn.widgets.Switch.from_param(lmae.param.datashade_switch)
+datashader_switch = pn.widgets.Switch.from_param(lmae.param.should_datashade)
 datashader_switch_row = pn.Row(datashader_label, datashader_switch)
 # TODO: what is 'by points', 'charge density'?, 'pts above threshold'?
-color_by_selector = pn.widgets.Select.from_param(lmae.param.color_by_dropdown, name='Color By:')
+color_by_selector = pn.widgets.Select.from_param(lmae.param.color_by, name='Color By:')
 event_filter_type_selector = pn.widgets.Select.from_param(lmae.param.event_filter_type_selector, name='', width=width_of_major//4)
 event_filter_operation_selector = pn.widgets.Select.from_param(lmae.param.event_filter_op_selector, name='', width=int(width_of_major*.15))
 event_filter_value_input = pn.widgets.FloatInput.from_param(lmae.param.event_filter_value_input, name='', width=width_of_major//5)
@@ -40,17 +40,13 @@ flash_id_controls = pn.Column(pn.Row(flash_id_selector, flash_id_button), pn.Row
 flash_filter_type_selector = pn.widgets.Select.from_param(lmae.param.flash_filter_type_selector, name='', width=width_of_major//4)
 flash_filter_operation_selector = pn.widgets.Select.from_param(lmae.param.flash_filter_op_selector, name='', width=int(width_of_major*.15))
 flash_filter_value_input = pn.widgets.FloatInput.from_param(lmae.param.flash_filter_value_input, name='', width=width_of_major//5)
-# flash_filter_add = pn.widgets.Button.from_param(lmae.param.flash_filter_add, name='Apply', button_type='success', width=width_of_major//10)
+# TODO: flash_filter_add = pn.widgets.Button.from_param(lmae.param.flash_filter_add, name='Apply', button_type='success', width=width_of_major//10)
 flash_filter_controls = pn.Row(flash_filter_type_selector, flash_filter_operation_selector, flash_filter_value_input)#, flash_filter_add)
-
-
-# load dataset, set up plots
-lmae()
 
 ## Assemble layout
 left_controls = pn.Column(datashader_switch_row, color_by_selector, pn.pane.HTML('<h4>Event Filters:</h4>'), event_filter_controls, lmae.event_filter_table, pn.pane.HTML('<h4>Dataset Live View:</h4>'), lmae.dataset_html, width=width_of_major, height=900)
 right_controls = pn.Column(limit_button, pn.pane.HTML('<h4>Charge Assignment:</h4>'), charge_buttons_row, pn.pane.HTML('<h4>Flash Tools:</h4>'), cluster_button, pn.pane.HTML('<h4>View Flash ID:</h4>'), flash_id_controls, pn.pane.HTML('<h4>Flash Filters:</h4>'), flash_filter_controls, lmae.flash_filter_table, width=width_of_major)
-the_layout = pn.Row(left_controls, lmae.panelHandle, right_controls)
+the_layout = pn.Row(left_controls, lmae.panel_handle, right_controls)
 
 ## Start server
 the_layout.servable()
